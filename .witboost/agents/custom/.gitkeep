@@ -1,0 +1,8 @@
+# This directory is for user-defined custom agents.
+# Follow the same structure as core agents:
+#
+#   .witboost/agents/custom/<agent-name>/
+#   ├── agent.yml
+#   └── instructions.md
+#
+# Custom agents are included alongside core agents during setup.

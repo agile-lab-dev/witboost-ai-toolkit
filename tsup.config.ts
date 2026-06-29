@@ -1,0 +1,41 @@
+import { defineConfig } from "tsup";
+
+export default defineConfig([
+  {
+    entry: { "dist/index": ".witboost/mcp-server/src/server/index.ts" },
+    outDir: ".witboost/mcp-server",
+    format: "cjs",
+    target: "node18",
+    platform: "node",
+    bundle: true,
+    minify: false,
+    sourcemap: true,
+    clean: false,
+    banner: { js: "#!/usr/bin/env node" },
+    noExternal: [/.*/],
+  },
+  {
+    entry: { setup: ".witboost/mcp-server/src/setup/index.ts" },
+    outDir: ".witboost/mcp-server",
+    format: "cjs",
+    target: "node18",
+    platform: "node",
+    bundle: true,
+    minify: false,
+    sourcemap: true,
+    clean: false,
+    noExternal: [/.*/],
+  },
+  {
+    entry: { login: ".witboost/mcp-server/src/auth/index.ts" },
+    outDir: ".witboost/mcp-server",
+    format: "cjs",
+    target: "node18",
+    platform: "node",
+    bundle: true,
+    minify: false,
+    sourcemap: true,
+    clean: false,
+    noExternal: [/.*/],
+  },
+]);

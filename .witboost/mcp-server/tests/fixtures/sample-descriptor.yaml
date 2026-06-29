@@ -1,0 +1,67 @@
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: finance-data-product
+  title: Finance Data Product
+  description: A data product for financial reporting
+  annotations:
+    witboost.com/version: "1.0.0"
+spec:
+  type: dataproduct
+  domain: finance
+  owner: team-finance
+  mesh:
+    version: "1.0.0"
+  lifecycle: production
+relations:
+  - type: hasPart
+    targetRef: component:default/finance-storage
+  - type: hasPart
+    targetRef: component:default/finance-workload
+  - type: hasPart
+    targetRef: component:default/finance-output-port
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: finance-storage
+  title: Finance Storage
+  description: S3 storage for financial data
+  annotations:
+    backstage.io/source-location: "url:https://gitlab.example.com/finance/storage.git"
+spec:
+  type: storage
+  owner: team-finance
+  system: finance-data-product
+  mesh:
+    technology: s3
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: finance-workload
+  title: Finance Workload
+  description: Spark processing for financial data
+  annotations:
+    backstage.io/source-location: "url:https://gitlab.example.com/finance/workload.git"
+spec:
+  type: workload
+  owner: team-finance
+  system: finance-data-product
+  mesh:
+    technology: spark
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: finance-output-port
+  title: Finance Output Port
+  description: Snowflake output for financial reports
+  annotations:
+    backstage.io/source-location: "url:https://gitlab.example.com/finance/output-port.git"
+spec:
+  type: outputport
+  owner: team-finance
+  system: finance-data-product
+  mesh:
+    technology: snowflake

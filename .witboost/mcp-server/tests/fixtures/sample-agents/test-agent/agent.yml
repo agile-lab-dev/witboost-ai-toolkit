@@ -1,0 +1,27 @@
+name: "test-agent"
+displayName: "Test Agent"
+description: >
+  A sample agent for testing harness generators.
+
+tools:
+  - list_blueprints
+  - create_data_product
+
+category: "lifecycle"
+
+variables:
+  TOOLS_LIST: "auto"
+  CONFIG: "auto"
+  BASE_URL: "config"
+
+harness:
+  copilot:
+    command: "test-agent"
+  claude:
+    subcommand: "test"
+  codex:
+    section: "test"
+  deepagents:
+    model: "openai:gpt-4.1"
+    middleware: []
+    skills: true

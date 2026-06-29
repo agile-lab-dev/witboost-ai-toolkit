@@ -1,0 +1,24 @@
+name: "witboost"
+displayName: "Witboost"
+description: >
+  Unified Witboost AI assistant for the full data product lifecycle:
+  discovery, creation, implementation, validation, governance, and deployment.
+  Operates autonomously with iterative validate-fix loops.
+
+skills:
+  - witboost-catalog
+  - witboost-scaffold
+  - witboost-deploy
+
+category: "lifecycle"
+
+harness:
+  copilot:
+    command: "witboost"
+  claude:
+    subcommand: "witboost"
+  codex:
+    section: "witboost"
+  deepagents:
+    model: "anthropic:claude-sonnet-4-20250514"
+    middleware: []

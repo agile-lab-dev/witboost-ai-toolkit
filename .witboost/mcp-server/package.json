@@ -1,0 +1,10 @@
+{
+  "name": "witboost-ai-mcp-server",
+  "version": "0.1.0",
+  "description": "Witboost AI Toolkit — MCP server for data product lifecycle management",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "bin": {
+    "witboost-mcp": "dist/index.cjs"
+  }
+}

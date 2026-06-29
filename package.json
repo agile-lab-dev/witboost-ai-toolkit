@@ -1,0 +1,36 @@
+{
+  "name": "witboost-ai-toolkit",
+  "version": "0.1.0",
+  "description": "Portable AI toolkit wrapping Witboost platform APIs as MCP tools and coding agents",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agile-lab-dev/witboost-ai-toolkit.git"
+  },
+  "homepage": "https://github.com/agile-lab-dev/witboost-ai-toolkit#readme",
+  "bugs": {
+    "url": "https://github.com/agile-lab-dev/witboost-ai-toolkit/issues"
+  },
+  "scripts": {
+    "build": "tsup && node scripts/copy-assets.js",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "biome check .witboost/mcp-server/src/ .witboost/mcp-server/tests/",
+    "format": "biome format --write .witboost/mcp-server/src/ .witboost/mcp-server/tests/",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.0",
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "@types/node": "^25.9.3",
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.0",
+    "yaml": "^2.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

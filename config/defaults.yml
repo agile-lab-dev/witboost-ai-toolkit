@@ -1,0 +1,43 @@
+# .witboost/config.yml — Witboost AI Toolkit configuration
+# All fields are optional. Defaults shown in comments.
+
+# API connection settings
+api:
+  # Base URL of the Witboost platform (REQUIRED via env var if not set here)
+  # Override: WITBOOST_BASE_URL
+  # baseUrl: "https://witboost.example.com"
+
+  # Hasura GraphQL endpoint URL (optional)
+  # If not set, derived from baseUrl by replacing the "ui." host prefix with "hasura."
+  # Override: WITBOOST_HASURA_URL
+  # hasuraUrl: "https://hasura.witboost.example.com/v1/graphql"
+
+  # API version prefix
+  # Default: "v1"
+  version: "v1"
+
+  # Request timeout in milliseconds
+  # Default: 30000
+  timeout: 30000
+
+# Project defaults
+defaults:
+  # Default domain for new data products
+  domain: ""
+
+  # Default environment for deployments
+  environment: ""
+
+# Harness configuration
+harness:
+  # Which harness(es) to generate files for
+  # Values: copilot, claude, codex, deepagents
+  # Default: [copilot]
+  targets:
+    - copilot
+
+# Agent settings
+agents:
+  # Include custom agents from .witboost/agents/custom/
+  # Default: true
+  includeCustom: true

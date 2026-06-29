@@ -1,0 +1,39 @@
+{
+  "deployments": [
+    {
+      "id": "deploy-001",
+      "dataProductId": "finance-data-product",
+      "environment": "development",
+      "status": "completed",
+      "startedAt": "2026-06-14T10:00:00Z",
+      "completedAt": "2026-06-14T10:05:30Z",
+      "logs": [
+        { "timestamp": "2026-06-14T10:00:01Z", "level": "INFO", "message": "Starting deployment for finance-data-product" },
+        { "timestamp": "2026-06-14T10:01:00Z", "level": "INFO", "message": "Provisioning storage component: finance-storage" },
+        { "timestamp": "2026-06-14T10:02:30Z", "level": "INFO", "message": "Storage provisioned successfully" },
+        { "timestamp": "2026-06-14T10:03:00Z", "level": "INFO", "message": "Provisioning workload: finance-workload" },
+        { "timestamp": "2026-06-14T10:04:00Z", "level": "INFO", "message": "Workload provisioned successfully" },
+        { "timestamp": "2026-06-14T10:04:30Z", "level": "INFO", "message": "Provisioning output port: finance-output-port" },
+        { "timestamp": "2026-06-14T10:05:30Z", "level": "INFO", "message": "Deployment completed successfully" }
+      ],
+      "errors": []
+    },
+    {
+      "id": "deploy-002",
+      "dataProductId": "finance-data-product",
+      "environment": "staging",
+      "status": "failed",
+      "startedAt": "2026-06-14T11:00:00Z",
+      "completedAt": "2026-06-14T11:03:00Z",
+      "logs": [
+        { "timestamp": "2026-06-14T11:00:01Z", "level": "INFO", "message": "Starting deployment for finance-data-product" },
+        { "timestamp": "2026-06-14T11:01:00Z", "level": "INFO", "message": "Provisioning storage component: finance-storage" },
+        { "timestamp": "2026-06-14T11:02:00Z", "level": "ERROR", "message": "Failed to create S3 bucket: AccessDenied — IAM role lacks s3:CreateBucket permission" },
+        { "timestamp": "2026-06-14T11:03:00Z", "level": "FATAL", "message": "Deployment failed: 1 component error(s)" }
+      ],
+      "errors": [
+        "finance-storage: AccessDenied — IAM role lacks s3:CreateBucket permission"
+      ]
+    }
+  ]
+}

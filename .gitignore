@@ -1,0 +1,41 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Auth tokens / runtime state
+.witboost/token.json
+
+# Node
+node_modules/
+package-lock.json
+
+# Build output (rebuilt via `npm run build`)
+.witboost/mcp-server/dist/
+.witboost/mcp-server/*.cjs
+.witboost/mcp-server/*.cjs.map
+
+# Internal API specs (not redistributable)
+.witboost/api-specs/
+
+# Config overrides
+*.local.yml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+*.code-workspace
+.vscode/mcp.json
+
+# ── Cloned data product repos (working directories) ──
+_repos/
+
+# ── Ad-hoc test/debug scripts ──
+.witboost/scratch/
+
+

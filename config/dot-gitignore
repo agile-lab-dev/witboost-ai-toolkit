@@ -1,0 +1,5 @@
+# Witboost AI Toolkit (MCP Server)
+# Sensitive / generated files — do not commit
+local.yml
+.env
+node_modules/

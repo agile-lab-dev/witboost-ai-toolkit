@@ -37,22 +37,42 @@ describe("GeminiGenerator", () => {
     expect(gen.harnessName).toBe("gemini");
   });
 
-  it("generates GEMINI.md and .gemini/settings.json", () => {
+  it("generates GEMINI.md, settings.json, instructions, and skills", () => {
     const files = gen.generate([agent], config, "/repo");
     const paths = files.map((f) => f.path);
 
     expect(paths).toContain("GEMINI.md");
     expect(paths).toContain(".gemini/settings.json");
+    expect(paths).toContain(".gemini/instructions/test-agent.md");
+    expect(paths).toContain(".gemini/skills/witboost-catalog.md");
   });
 
-  it("GEMINI.md contains agent section with resolved variables", () => {
+  it("GEMINI.md uses @imports for instructions and skills", () => {
     const files = gen.generate([agent], config, "/repo");
     const geminiMd = files.find((f) => f.path === "GEMINI.md")!;
 
-    expect(geminiMd.content).toContain("## Test Agent");
-    expect(geminiMd.content).toContain("`list_blueprints`");
-    expect(geminiMd.content).toContain("https://test.witboost.com");
-    expect(geminiMd.content).not.toContain("{{");
+    expect(geminiMd.content).toContain("@.gemini/instructions/test-agent.md");
+    expect(geminiMd.content).toContain("@.gemini/skills/witboost-catalog.md");
+  });
+
+  it("instruction file contains resolved variables", () => {
+    const files = gen.generate([agent], config, "/repo");
+    const instrFile = files.find((f) => f.path === ".gemini/instructions/test-agent.md")!;
+
+    expect(instrFile.content).toContain("# Test Agent");
+    expect(instrFile.content).toContain("`list_blueprints`");
+    expect(instrFile.content).toContain("https://test.witboost.com");
+    expect(instrFile.content).not.toContain("{{");
+  });
+
+  it("skill file contains description, tools, and content", () => {
+    const files = gen.generate([agent], config, "/repo");
+    const skillFile = files.find((f) => f.path === ".gemini/skills/witboost-catalog.md")!;
+
+    expect(skillFile.content).toContain("# witboost-catalog");
+    expect(skillFile.content).toContain("Navigate the Witboost catalog");
+    expect(skillFile.content).toContain("`list_blueprints`");
+    expect(skillFile.content).toContain("# Catalog");
   });
 
   it("settings.json configures MCP server", () => {
@@ -64,13 +84,23 @@ describe("GeminiGenerator", () => {
     expect(parsed.mcpServers["witboost-ai-toolkit"].args).toContain(".witboost/mcp-server/dist/index.cjs");
   });
 
-  it("combines multiple agents into one GEMINI.md", () => {
-    const agent2: AgentDefinition = { ...agent, name: "agent-2", displayName: "Agent 2" };
+  it("combines multiple agents, deduplicates shared skills", () => {
+    const agent2: AgentDefinition = {
+      ...agent,
+      name: "agent-2",
+      displayName: "Agent 2",
+      // shares the same skill
+    };
     const files = gen.generate([agent, agent2], config, "/repo");
+    const paths = files.map((f) => f.path);
+
+    expect(paths).toContain(".gemini/instructions/test-agent.md");
+    expect(paths).toContain(".gemini/instructions/agent-2.md");
+    // Shared skill emitted only once
+    expect(paths.filter((p) => p === ".gemini/skills/witboost-catalog.md")).toHaveLength(1);
 
     const geminiMd = files.find((f) => f.path === "GEMINI.md")!;
-    expect(geminiMd.content).toContain("## Test Agent");
-    expect(geminiMd.content).toContain("## Agent 2");
-    expect(files.filter((f) => f.path === "GEMINI.md")).toHaveLength(1);
+    expect(geminiMd.content).toContain("@.gemini/instructions/test-agent.md");
+    expect(geminiMd.content).toContain("@.gemini/instructions/agent-2.md");
   });
 });

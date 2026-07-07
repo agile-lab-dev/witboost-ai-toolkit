@@ -8,20 +8,62 @@ export class GeminiGenerator implements HarnessGenerator {
   generate(agents: AgentDefinition[], config: WitboostConfig, outputDir: string): GeneratedFile[] {
     const files: GeneratedFile[] = [];
 
-    // Generate GEMINI.md with all agents as sections
-    const sections = agents.map((agent) => this.buildSection(agent, config));
+    // Generate per-agent instruction files under .gemini/instructions/
+    const importLines: string[] = [];
+    for (const agent of agents) {
+      const instructions = resolveVariables(agent, config);
+      const fileName = `${agent.name}.md`;
 
+      files.push({
+        path: `.gemini/instructions/${fileName}`,
+        content: `# ${agent.displayName}\n\n${instructions}\n`,
+        overwrite: true,
+      });
+
+      importLines.push(`@.gemini/instructions/${fileName}`);
+    }
+
+    // Generate per-skill files under .gemini/skills/
+    const emittedSkills = new Set<string>();
+    for (const agent of agents) {
+      for (const skill of agent.resolvedSkills) {
+        if (emittedSkills.has(skill.name)) continue;
+        emittedSkills.add(skill.name);
+
+        const skillFileName = `${skill.name}.md`;
+        const toolsList = skill.tools.map((t) => `- \`${t}\``).join("\n");
+        const skillContent = [
+          `# ${skill.name}`,
+          "",
+          skill.description,
+          "",
+          "## Tools",
+          "",
+          toolsList,
+          "",
+          skill.content,
+          "",
+        ].join("\n");
+
+        files.push({
+          path: `.gemini/skills/${skillFileName}`,
+          content: skillContent,
+          overwrite: true,
+        });
+
+        importLines.push(`@.gemini/skills/${skillFileName}`);
+      }
+    }
+
+    // Generate root GEMINI.md with @imports
     const geminiMd = [
       "# Witboost AI Toolkit",
       "",
       "This project uses the Witboost AI Toolkit for data product lifecycle management.",
+      "The MCP server is configured in `.gemini/settings.json`.",
       "",
-      "## MCP Server",
+      ...importLines,
       "",
-      "The MCP server provides tools for interacting with the Witboost platform.",
-      "It is configured in `.gemini/settings.json`.",
-      "",
-      ...sections,
     ].join("\n");
 
     files.push({
@@ -49,18 +91,5 @@ export class GeminiGenerator implements HarnessGenerator {
     });
 
     return files;
-  }
-
-  private buildSection(agent: AgentDefinition, config: WitboostConfig): string {
-    const instructions = resolveVariables(agent, config);
-
-    return [
-      `## ${agent.displayName}`,
-      "",
-      instructions,
-      "",
-      "---",
-      "",
-    ].join("\n");
   }
 }

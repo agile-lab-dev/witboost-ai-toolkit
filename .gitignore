@@ -25,6 +25,16 @@ package-lock.json
 .DS_Store
 Thumbs.db
 
+# Generated harness files (output of setup.cjs, belong in target repos)
+.github/agents/
+.github/prompts/
+.vscode/mcp.json
+CLAUDE.md
+.claude/
+GEMINI.md
+.gemini/
+AGENTS.md
+
 # IDE
 .idea/
 *.swp

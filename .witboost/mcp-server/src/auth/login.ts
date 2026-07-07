@@ -218,7 +218,10 @@ async function refreshToken(
  * 2. Try refresh if expired but refresh_token exists
  * 3. Otherwise start interactive browser login
  */
-export async function ssoLogin(baseUrl: string, cwd?: string): Promise<TokenData> {
+export async function ssoLogin(rawBaseUrl: string, cwd?: string): Promise<TokenData> {
+  // Normalize: strip trailing slashes
+  const baseUrl = rawBaseUrl.replace(/\/+$/, "");
+
   // 1. Check cache
   const cached = loadCachedToken(cwd);
   if (cached) {

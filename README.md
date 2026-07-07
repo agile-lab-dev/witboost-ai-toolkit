@@ -11,7 +11,7 @@ The toolkit has two parts:
 1. **MCP Server** — a single Node.js process that exposes 33 tools across 9 categories, callable by any MCP-compatible AI client (GitHub Copilot, Claude Code, Codex, etc.)
 2. **Agent definitions** — canonical YAML+Markdown descriptions of workflows, skills, and rules that get translated into harness-specific files (`.agent.md`, `CLAUDE.md`, `AGENTS.md`, etc.)
 
-When you run `node .witboost/setup.js --harness copilot`, the toolkit generates the files your IDE needs to connect to the MCP server and load the agent instructions. The AI can then autonomously create data products, implement business logic, validate against governance policies, and deploy — all through tool calls.
+When you run `node .witboost/mcp-server/setup.cjs --harness copilot`, the toolkit generates the files your IDE needs to connect to the MCP server and load the agent instructions. The AI can then autonomously create data products, implement business logic, validate against governance policies, and deploy — all through tool calls.
 
 ## Quick Start
 
@@ -33,7 +33,7 @@ cp -r .witboost/ /path/to/your-repo/.witboost/
 
 # 5. Generate IDE harness files
 cd /path/to/your-repo
-node .witboost/setup.js --harness copilot
+node .witboost/mcp-server/setup.cjs --harness copilot
 ```
 
 ## MCP Tools
@@ -72,12 +72,13 @@ The setup script translates canonical agent definitions into harness-specific fi
 |---------|----------------|
 | **GitHub Copilot** | `.github/agents/*.agent.md` + `.vscode/mcp.json` |
 | **Claude Code** | `CLAUDE.md` + `.claude/settings.json` |
+| **Gemini Code Assist** | `GEMINI.md` + `.gemini/settings.json` |
 | **OpenAI Codex** | `AGENTS.md` |
 
 ```bash
-node .witboost/setup.js --harness copilot   # or claude, codex
-node .witboost/setup.js --dry-run            # preview without writing
-node .witboost/setup.js --force              # overwrite existing files
+node .witboost/mcp-server/setup.cjs --harness copilot   # or claude, gemini, codex
+node .witboost/mcp-server/setup.cjs --dry-run            # preview without writing
+node .witboost/mcp-server/setup.cjs --force              # overwrite existing files
 ```
 
 ## Configuration

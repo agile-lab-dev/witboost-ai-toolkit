@@ -5,6 +5,7 @@ export interface HarnessOverrides {
   copilot?: { command?: string; promptFile?: string };
   claude?: { subcommand?: string };
   codex?: { section?: string };
+  gemini?: Record<string, never>;
   deepagents?: { model?: string; middleware?: string[]; skills?: boolean };
 }
 

@@ -7,6 +7,7 @@ import { CopilotGenerator } from "../generators/copilot.js";
 import { ClaudeGenerator } from "../generators/claude.js";
 import { CodexGenerator } from "../generators/codex.js";
 import { DeepAgentsGenerator } from "../generators/deepagents.js";
+import { GeminiGenerator } from "../generators/gemini.js";
 
 // ── CLI Argument Parsing ────────────────────────────────────────────
 
@@ -47,10 +48,10 @@ function printHelp(): void {
   console.log(`
 Witboost AI Toolkit — Setup Script
 
-Usage: node .witboost/setup.js [options]
+Usage: node .witboost/mcp-server/setup.cjs [options]
 
 Options:
-  --harness <name>    Generate files for a specific harness (copilot, claude, codex, deepagents)
+  --harness <name>    Generate files for a specific harness (copilot, claude, codex, gemini, deepagents)
                       Can be specified multiple times. Default: from config.yml
   --dry-run           Show what files would be generated without writing them
   --force             Overwrite existing files without prompting
@@ -174,6 +175,7 @@ const GENERATORS: Record<string, () => HarnessGenerator> = {
   copilot: () => new CopilotGenerator(),
   claude: () => new ClaudeGenerator(),
   codex: () => new CodexGenerator(),
+  gemini: () => new GeminiGenerator(),
   deepagents: () => new DeepAgentsGenerator(),
 };
 

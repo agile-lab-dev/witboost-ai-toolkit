@@ -7,8 +7,9 @@ import { buildConfig, type WitboostConfig, type RawConfigFile } from "./schema.j
  * Read key=value pairs from a .env file.
  * Ignores comments (#) and blank lines. Does NOT override existing env vars.
  */
-function loadDotEnv(repoRoot: string): void {
-  const envPath = resolve(repoRoot, ".env");
+export function loadDotEnv(repoRoot?: string): void {
+  const root = repoRoot ?? process.cwd();
+  const envPath = resolve(root, ".env");
   if (!existsSync(envPath)) return;
 
   const lines = readFileSync(envPath, "utf-8").split(/\r?\n/);

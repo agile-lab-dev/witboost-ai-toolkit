@@ -1,4 +1,4 @@
-import { loadConfig } from "../config/loader.js";
+import { loadConfig, loadDotEnv } from "../config/loader.js";
 import { createServer } from "./server.js";
 import { startTransport } from "./transport.js";
 import { ssoLogin, loadCachedToken } from "../auth/login.js";
@@ -15,6 +15,9 @@ import "../tools/marketplace.js";
 
 async function main(): Promise<void> {
   try {
+    // Load .env early so auth vars are available before loadConfig()
+    loadDotEnv();
+
     const authMethod = (process.env.WITBOOST_AUTH_METHOD ?? "pat").toLowerCase();
     const baseUrl = process.env.WITBOOST_BASE_URL;
 

@@ -74,7 +74,7 @@ export function buildConfig(raw: {
   }
   if (!raw.token) {
     throw new Error(
-      "Missing required configuration: token. Set the WITBOOST_TOKEN environment variable",
+      "Missing required configuration: token. Set WITBOOST_TOKEN in .env, or use WITBOOST_AUTH_METHOD=sso for browser login",
     );
   }
 

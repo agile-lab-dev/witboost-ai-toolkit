@@ -15,22 +15,32 @@ import "../tools/marketplace.js";
 
 async function main(): Promise<void> {
   try {
-    // Try SSO token if no static token is configured
-    let token = process.env.WITBOOST_TOKEN;
+    const authMethod = (process.env.WITBOOST_AUTH_METHOD ?? "pat").toLowerCase();
     const baseUrl = process.env.WITBOOST_BASE_URL;
 
-    if (!token && baseUrl) {
-      const cached = loadCachedToken();
-      if (cached) {
-        token = cached.token;
-        process.stderr.write("[witboost-ai-toolkit] Using cached SSO token.\n");
-      } else {
-        process.stderr.write("[witboost-ai-toolkit] No token found. Run: node .witboost/login.cjs\n");
+    if (authMethod === "sso") {
+      // SSO mode: full login flow (cache → refresh → interactive browser)
+      if (!baseUrl) {
+        process.stderr.write(
+          "[witboost-ai-toolkit] WITBOOST_AUTH_METHOD=sso requires WITBOOST_BASE_URL.\n",
+        );
+        process.exit(1);
       }
-    }
-
-    if (token) {
-      process.env.WITBOOST_TOKEN = token;
+      const result = await ssoLogin(baseUrl);
+      process.env.WITBOOST_TOKEN = result.token;
+    } else {
+      // PAT mode (default): use WITBOOST_TOKEN, fallback to cached SSO token
+      let token = process.env.WITBOOST_TOKEN;
+      if (!token && baseUrl) {
+        const cached = loadCachedToken();
+        if (cached) {
+          token = cached.token;
+          process.stderr.write("[witboost-ai-toolkit] Using cached SSO token.\n");
+        }
+      }
+      if (token) {
+        process.env.WITBOOST_TOKEN = token;
+      }
     }
 
     const config = loadConfig();

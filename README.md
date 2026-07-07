@@ -23,7 +23,8 @@ npm install
 
 # 2. Configure
 cp .env.example .env
-# Edit .env — set WITBOOST_BASE_URL and WITBOOST_TOKEN
+# Edit .env — set WITBOOST_BASE_URL and either:
+#   WITBOOST_TOKEN (PAT) or WITBOOST_AUTH_METHOD=sso
 
 # 3. Build
 npm run build
@@ -88,13 +89,25 @@ node .witboost/mcp-server/setup.cjs --force              # overwrite existing fi
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `WITBOOST_BASE_URL` | Yes | Witboost platform URL |
-| `WITBOOST_TOKEN` | Yes | Personal Access Token |
+| `WITBOOST_AUTH_METHOD` | No | `pat` (default) or `sso` — see below |
+| `WITBOOST_TOKEN` | Yes (if `pat`) | Personal Access Token |
 | `WITBOOST_HASURA_URL` | No | Explicit Hasura GraphQL endpoint (see below) |
 | `WITBOOST_HASURA_JWT` | No | JWT with Hasura claims for direct GraphQL access |
 | `WITBOOST_API_VERSION` | No | API version (default: `v1`) |
 | `WITBOOST_API_TIMEOUT` | No | Request timeout in ms (default: `30000`) |
 | `WITBOOST_DEFAULT_DOMAIN` | No | Default domain for new data products |
 | `WITBOOST_DEFAULT_ENVIRONMENT` | No | Default deployment environment |
+
+### Authentication
+
+The toolkit supports two authentication methods, controlled by `WITBOOST_AUTH_METHOD`:
+
+| Method | `.env` setup | How it works |
+|--------|-------------|--------------|
+| **`pat`** (default) | Set `WITBOOST_TOKEN=wbat-…` | Uses your Personal Access Token, auto-exchanges it for a short-lived JWT |
+| **`sso`** | Set `WITBOOST_AUTH_METHOD=sso` (no `WITBOOST_TOKEN` needed) | Opens a browser for SSO login on first run, then caches and auto-refreshes the JWT |
+
+In SSO mode, the token is saved to `.witboost/token.json` and reused across restarts. When it expires, the toolkit tries a silent refresh first; if that fails, it opens the browser again.
 
 ### Hasura URL resolution
 

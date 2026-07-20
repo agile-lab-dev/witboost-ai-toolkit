@@ -155,7 +155,8 @@ Component repos use one of two patterns — **always check before editing**:
 - **Phase 3 is non-negotiable** — validate against `production`, read failing policies via `get_policy`, fix ALL errors in one batch, push, re-validate. Repeat until zero errors.
 
 ### Creation
-- **MANDATORY sequence**: `get_blueprint` → `get_template_schema` for each template → `add_component`
+- **MANDATORY sequence**: `get_blueprint` → `get_template_schema` for each template → confirmation table → `add_component`
+- **Always show a confirmation table** before calling `create_data_product` or `add_component`. The table must list every parameter with its value and origin: _(provided)_ for values given by the user, _(inferred)_ for values derived from workspace/catalog context, _(auto)_ for values the tool resolves automatically (e.g. owner from auth). Wait for explicit user approval before proceeding.
 - **Never call `add_component`** without first calling `get_template_schema` for that specific template
 - **Never guess** `dataProductOwner` — omit it, the tool auto-resolves
 - **Never guess** template names — always call `list_templates` or `get_blueprint` first

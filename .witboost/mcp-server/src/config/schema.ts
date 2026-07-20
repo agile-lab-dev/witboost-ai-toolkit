@@ -6,6 +6,9 @@ export interface WitboostConfig {
   hasuraJwt?: string;
   /** Explicit Hasura GraphQL endpoint. If not set, derived from baseUrl (ui.X → hasura.X). */
   hasuraUrl?: string;
+  /** Explicit Witboost Computational Governance (WCG) base URL.
+   *  If not set, derived from baseUrl (ui.X → wcg.X/governance-platform). */
+  wcgUrl?: string;
   defaultDomain: string;
   defaultEnvironment: string;
   apiVersion: string;
@@ -62,6 +65,7 @@ export function buildConfig(raw: {
   token?: string;
   hasuraJwt?: string;
   hasuraUrl?: string;
+  wcgUrl?: string;
   defaultDomain?: string;
   defaultEnvironment?: string;
   apiVersion?: string;
@@ -95,6 +99,7 @@ export function buildConfig(raw: {
     token: raw.token,
     hasuraJwt: raw.hasuraJwt || undefined,
     hasuraUrl: raw.hasuraUrl || undefined,
+    wcgUrl: raw.wcgUrl || undefined,
     defaultDomain: raw.defaultDomain ?? CONFIG_DEFAULTS.defaultDomain,
     defaultEnvironment: raw.defaultEnvironment ?? CONFIG_DEFAULTS.defaultEnvironment,
     apiVersion,

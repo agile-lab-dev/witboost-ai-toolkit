@@ -86,6 +86,7 @@ export function loadConfig(configPath?: string): WitboostConfig {
   const rawHasuraJwt = env.WITBOOST_HASURA_JWT;
   const hasuraJwt = rawHasuraJwt?.replace(/^Bearer\s+/i, "") || undefined;
   const hasuraUrl = env.WITBOOST_HASURA_URL || undefined;
+  const wcgUrl = env.WITBOOST_WCG_URL || undefined;
   const apiVersion = env.WITBOOST_API_VERSION ?? fileConfig.api?.version;
   const rawTimeout = env.WITBOOST_API_TIMEOUT ?? fileConfig.api?.timeout;
   const requestTimeout = rawTimeout !== undefined ? Number(rawTimeout) : undefined;
@@ -97,6 +98,7 @@ export function loadConfig(configPath?: string): WitboostConfig {
     token,
     hasuraJwt,
     hasuraUrl,
+    wcgUrl,
     defaultDomain,
     defaultEnvironment,
     apiVersion,

@@ -21,19 +21,19 @@ git clone https://github.com/agile-lab-dev/witboost-ai-toolkit.git
 cd witboost-ai-toolkit
 npm install
 
-# 2. Configure
-cp .env.example .env
+# 2. Build
+npm run build
+
+# 3. Copy .witboost/ into your data product repo
+cp -r .witboost/ /path/to/your-repo/.witboost/
+cp .env.example /path/to/your-repo/.env
+
+# 4. Configure
+cd /path/to/your-repo
 # Edit .env — set WITBOOST_BASE_URL and either:
 #   WITBOOST_TOKEN (PAT) or WITBOOST_AUTH_METHOD=sso
 
-# 3. Build
-npm run build
-
-# 4. Copy .witboost/ into your data product repo
-cp -r .witboost/ /path/to/your-repo/.witboost/
-
 # 5. Generate IDE harness files
-cd /path/to/your-repo
 node .witboost/mcp-server/setup.cjs --harness copilot
 ```
 
@@ -86,13 +86,14 @@ node .witboost/mcp-server/setup.cjs --force              # overwrite existing fi
 
 ### Environment variables (`.env`)
 
+Place `.env` in the root of your **data product repo** (next to the `.witboost/` folder).
+
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `WITBOOST_BASE_URL` | Yes | Witboost platform URL |
 | `WITBOOST_AUTH_METHOD` | No | `pat` (default) or `sso` — see below |
 | `WITBOOST_TOKEN` | Yes (if `pat`) | Personal Access Token |
-| `WITBOOST_HASURA_URL` | No | Explicit Hasura GraphQL endpoint (see below) |
-| `WITBOOST_HASURA_JWT` | No | JWT with Hasura claims for direct GraphQL access |
+| `WITBOOST_WCG_URL` | No | Explicit Witboost Computational Governance URL (default: derived from base URL replacing `ui.` with `wcg.`) |
 | `WITBOOST_API_VERSION` | No | API version (default: `v1`) |
 | `WITBOOST_API_TIMEOUT` | No | Request timeout in ms (default: `30000`) |
 | `WITBOOST_DEFAULT_DOMAIN` | No | Default domain for new data products |
@@ -108,15 +109,6 @@ The toolkit supports two authentication methods, controlled by `WITBOOST_AUTH_ME
 | **`sso`** | Set `WITBOOST_AUTH_METHOD=sso` (no `WITBOOST_TOKEN` needed) | Opens a browser for SSO login on first run, then caches and auto-refreshes the JWT |
 
 In SSO mode, the token is saved to `.witboost/token.json` and reused across restarts. When it expires, the toolkit tries a silent refresh first; if that fails, it opens the browser again.
-
-### Hasura URL resolution
-
-The governance and marketplace tools need direct access to the Hasura GraphQL API. The URL is resolved in this order:
-
-1. **`WITBOOST_HASURA_URL`** — explicit URL, if set
-2. **Convention** — derived from `WITBOOST_BASE_URL` by replacing the `ui.` host prefix with `hasura.` (e.g., `https://ui.example.witboost.com` → `https://hasura.example.witboost.com/v1/graphql`)
-
-If your Witboost instance uses a different URL scheme, set `WITBOOST_HASURA_URL` explicitly.
 
 ### Project config
 
@@ -153,11 +145,6 @@ npm run check      # TypeScript type check
 npm run lint       # Biome lint
 npm run format     # Biome format
 ```
-
-## Known Limitations
-
-- **Git provider**: repository URL construction currently assumes GitLab. Platforms using GitHub or Bitbucket as the backing Git provider may need adjustments to `repositories.ts` and `components.ts`.
-- **Hasura URL convention**: if `WITBOOST_HASURA_URL` is not set, the toolkit derives it from the base URL assuming the `ui.` → `hasura.` subdomain convention. Set the env var explicitly if your deployment differs.
 
 ## Contributing
 

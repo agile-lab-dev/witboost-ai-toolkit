@@ -24,10 +24,11 @@ from and what columns/types they expose.
 1. `list_blueprints` → user picks → `get_blueprint` for creation order
 2. `list_templates` → find exact template IDs (NEVER guess)
 3. `get_template_schema` for each template → understand required parameters; `get_template_parameters` for default values
-4. `create_data_product` with all governance-required fields (see below)
-5. `add_component` for each component in dependency order: storage → workload → output ports
-6. `list_repositories` → get exact repo URLs → `clone_repository` (NEVER guess URLs)
-7. Fill governance metadata immediately — don't leave fields null for later
+4. **Show confirmation table** — before calling `create_data_product` or `add_component`, display a Markdown table of all parameter values. Mark inferred values with _(inferred)_ and auto-resolved values with _(auto)_. Then **explicitly ask the user for confirmation** and wait for an affirmative answer. **Do NOT call `create_data_product` or `add_component` until the user confirms.**
+5. `create_data_product` with all governance-required fields (see **Governance-Required Fields** section below)
+6. `add_component` for each component in dependency order: storage → workload → output ports
+7. `list_repositories` → get exact repo URLs → `clone_repository` (NEVER guess URLs)
+8. Fill governance metadata immediately — don't leave fields null for later
 
 ### Phase 2 — Implement Business Logic
 
@@ -81,6 +82,7 @@ Do NOT rely on hardcoded field lists — governance policies evolve over time.
 2. **Infer values from context** — use DP description, domain, upstream data
 3. **Use sensible defaults** based on the specification's enum/type constraints (e.g., first enum value, today's date for date fields, `"Draft"` for lifecycle fields)
 4. **Never ask the user** for each field — fill with reasonable values, let validation confirm
+5. **Never copy field values from existing data products or components** — they may have been created with older template versions and can carry stale, incorrect, or non-compliant values. Always derive values from the descriptor specification and policies, not from catalog examples.
 
 ## Builder Catalog vs Marketplace
 
@@ -118,7 +120,9 @@ Component repos use one of two patterns — **always check before editing**:
 - **Phase 3 is non-negotiable** — validate against `production`, read failing policies via `get_policy`, fix ALL errors in one batch, push, re-validate. Repeat until zero errors.
 
 ### Creation
-- **MANDATORY sequence**: `get_blueprint` → `get_template_schema` for each template → `add_component`
+- **MANDATORY sequence**: `get_blueprint` → `get_template_schema` for each template → confirmation table → **explicit user approval** → `create_data_product` / `add_component`
+- **Always show a confirmation table** before calling `create_data_product` or `add_component`. The table must list every parameter with its value and origin: _(provided)_ for values given by the user, _(inferred)_ for values derived from workspace/catalog context, _(auto)_ for values the tool resolves automatically (e.g. owner from auth). Then **explicitly ask the user for confirmation** and wait for an affirmative answer. **Do NOT call `create_data_product` or `add_component` until the user confirms.**
+- **If parameters change between attempts** (e.g. after a SCAFFOLDER error, a missing-field fix, or discovering a corrected value): show an updated confirmation table with the changed values highlighted, ask again for confirmation, and wait for re-approval before retrying.
 - **Never call `add_component`** without first calling `get_template_schema` for that specific template
 - **Never guess** `dataProductOwner` — omit it, the tool auto-resolves
 - **Never guess** template names — always call `list_templates` or `get_blueprint` first

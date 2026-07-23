@@ -257,17 +257,14 @@ const marketplaceTools: ToolDefinition[] = [
       const res = await searchQuery(ctx, {
         term,
         types: ["marketplace-projects"],
+        filters: { "_computedInfo.environment": environment },
         pageLimit,
         pageCursor,
       });
 
       if (!res.ok) return apiError("SEARCH_ERROR", res.error);
 
-      // Filter by environment client-side
-      const allDocs = (res.data.results ?? []).map((r) => r.document);
-      const docs = allDocs.filter(
-        (doc) => !environment || (doc._computedInfo?.environment ?? "") === environment,
-      );
+      const docs = (res.data.results ?? []).map((r) => r.document);
 
       if (docs.length === 0) {
         return text(`No marketplace results found for "${term}" in ${environment}.`);
@@ -314,21 +311,20 @@ const marketplaceTools: ToolDefinition[] = [
       const res = await searchQuery(ctx, {
         term: nameFromUrn(externalId),
         types: ["marketplace-projects"],
-        pageLimit: 10,
+        filters: {
+          "_computedInfo.urn": externalId,
+          "_computedInfo.environment": environment,
+        },
+        pageLimit: 5,
       });
 
       if (!res.ok) return apiError("SEARCH_ERROR", res.error);
 
       const docs = (res.data.results ?? []).map((r) => r.document);
-      const doc =
-        docs.find(
-          (d) =>
-            (d._computedInfo?.urn ?? d.external_id) === externalId &&
-            (!environment || (d._computedInfo?.environment ?? "") === environment),
-        ) ?? docs.find((d) => (d._computedInfo?.urn ?? d.external_id) === externalId);
+      const doc = docs[0];
 
       if (!doc) {
-        return text(`No data product found with External ID: ${externalId}`, true);
+        return text(`No data product found with External ID: ${externalId} in ${environment}`, true);
       }
 
       return text(formatDataProduct(doc));
@@ -361,9 +357,8 @@ const marketplaceTools: ToolDefinition[] = [
       const externalId = params.externalId as string;
       const environment = (params.environment as string) ?? "production";
 
-      // Fetch all marketplace items (DPs + components) and filter client-side.
-      // Components use different display names than the parent DP name,
-      // so we use empty term and paginate to collect all.
+      // Server-side filter for environment; client-side for system_urn + kind
+      // because _computedInfo.system_urn is not reliably supported as a PG search filter.
       const allDocs: SearchDocument[] = [];
       let cursor: string | undefined;
 
@@ -371,6 +366,7 @@ const marketplaceTools: ToolDefinition[] = [
         const res = await searchQuery(ctx, {
           term: "",
           types: ["marketplace-projects"],
+          filters: { "_computedInfo.environment": environment },
           pageLimit: 100,
           pageCursor: cursor,
         });
@@ -381,12 +377,11 @@ const marketplaceTools: ToolDefinition[] = [
         if (!cursor) break;
       }
 
-      // Filter: component-level items belonging to this DP
+      // Client-side: filter by system_urn + component kind
       const docs = allDocs.filter(
         (d) =>
           (d._computedInfo?.kind ?? "") === "component" &&
-          (d._computedInfo?.system_urn ?? "") === externalId &&
-          (!environment || (d._computedInfo?.environment ?? "") === environment),
+          (d._computedInfo?.system_urn ?? "") === externalId,
       );
 
       if (docs.length === 0) {
@@ -436,21 +431,20 @@ const marketplaceTools: ToolDefinition[] = [
       const res = await searchQuery(ctx, {
         term: nameFromUrn(externalId),
         types: ["marketplace-projects"],
-        pageLimit: 10,
+        filters: {
+          "_computedInfo.urn": externalId,
+          "_computedInfo.environment": environment,
+        },
+        pageLimit: 5,
       });
 
       if (!res.ok) return apiError("SEARCH_ERROR", res.error);
 
       const docs = (res.data.results ?? []).map((r) => r.document);
-      const doc =
-        docs.find(
-          (d) =>
-            (d._computedInfo?.urn ?? d.external_id) === externalId &&
-            (!environment || (d._computedInfo?.environment ?? "") === environment),
-        ) ?? docs.find((d) => (d._computedInfo?.urn ?? d.external_id) === externalId);
+      const doc = docs[0];
 
       if (!doc) {
-        return text(`No output port found with External ID: ${externalId}`, true);
+        return text(`No output port found with External ID: ${externalId} in ${environment}`, true);
       }
 
       // Fetch guardian policy id from marketplace REST API

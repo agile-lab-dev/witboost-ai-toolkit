@@ -1,5 +1,3 @@
-import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
 import { registerTools } from "./registry.js";
 import type { ToolDefinition, ToolResult } from "./types.js";
 
@@ -11,12 +9,17 @@ function apiError(code: string, message: string): ToolResult {
   return text(`[${code}] ${message}`, true);
 }
 
-/** Extract a clone-ready Git URL from entity annotations */
-function extractCloneUrl(entity: any): string | undefined {
-  // Primary: gitlab.com/project-slug → https://gitlab.com/<slug>.git
+interface RepoUrls {
+  httpUrl: string;
+  sshUrl: string;
+}
+
+/** Extract both HTTPS and SSH Git URLs from entity annotations (GitLab only) */
+function extractRepoUrls(entity: any): RepoUrls | undefined {
+  // Primary: gitlab.com/project-slug → group/subgroup/repo
   const slug = entity.metadata?.annotations?.["gitlab.com/project-slug"];
   if (slug && !slug.includes("undefined") && !slug.includes("${{")) {
-    return `https://gitlab.com/${slug}.git`;
+    return { httpUrl: `https://gitlab.com/${slug}.git`, sshUrl: `git@gitlab.com:${slug}.git` };
   }
   // Fallback: parse source-location or repo-url
   const srcLoc =
@@ -25,7 +28,7 @@ function extractCloneUrl(entity: any): string | undefined {
   if (srcLoc) {
     const cleaned = srcLoc.replace(/^url:/, "");
     const match = cleaned.match(/https:\/\/gitlab\.com\/([^/]+(?:\/[^/]+)*?)(?:\/-\/|\/?$)/);
-    if (match) return `https://gitlab.com/${match[1]}.git`;
+    if (match) return { httpUrl: `https://gitlab.com/${match[1]}.git`, sshUrl: `git@gitlab.com:${match[1]}.git` };
   }
   return undefined;
 }
@@ -35,7 +38,7 @@ const repositoryTools: ToolDefinition[] = [
     name: "list_repositories",
     description:
       "List Git repositories associated with a data product (system repo + all component repos). " +
-      "Returns clone-ready URLs. Always call this BEFORE clone_repository — do NOT guess repo URLs.",
+      "Returns both HTTPS and SSH clone URLs for each repository. Do NOT guess repo URLs — always call this tool instead.",
     category: "repositories",
     inputSchema: {
       type: "object",
@@ -50,14 +53,14 @@ const repositoryTools: ToolDefinition[] = [
       const dpRes = await ctx.api.get<any>(`/api/catalog/entities/by-name/system/default/${dpId}`);
       if (!dpRes.ok) return apiError(dpRes.error!.code, dpRes.error!.message);
 
-      const repos: { name: string; url: string; entity: string }[] = [];
+      const repos: { name: string; urls: RepoUrls; entity: string }[] = [];
 
       // Include the system (DP) repo itself
-      const dpUrl = extractCloneUrl(dpRes.data);
-      if (dpUrl) {
+      const dpUrls = extractRepoUrls(dpRes.data);
+      if (dpUrls) {
         repos.push({
           name: dpRes.data.metadata?.name ?? dpId,
-          url: dpUrl,
+          urls: dpUrls,
           entity: `system:default/${dpId}`,
         });
       }
@@ -70,11 +73,11 @@ const repositoryTools: ToolDefinition[] = [
       for (const ref of componentRefs) {
         const res = await ctx.api.get<any>(`/api/catalog/entities/by-name/${ref.replace(":", "/")}`);
         if (res.ok) {
-          const url = extractCloneUrl(res.data);
-          if (url) {
+          const urls = extractRepoUrls(res.data);
+          if (urls) {
             repos.push({
               name: res.data.metadata?.name ?? ref,
-              url,
+              urls,
               entity: ref,
             });
           }
@@ -84,67 +87,13 @@ const repositoryTools: ToolDefinition[] = [
       if (repos.length === 0) return text("No repositories found for this data product.");
 
       const lines = repos.map(
-        (r) => `- **${r.name}**\n  Clone URL: ${r.url}\n  Entity: ${r.entity}`,
+        (r) => `- **${r.name}**\n  HTTPS: ${r.urls.httpUrl}\n  SSH: ${r.urls.sshUrl}\n  Entity: ${r.entity}`,
       );
 
       return text(
         `Repositories (${repos.length}):\n\n${lines.join("\n\n")}\n\n` +
-        `> Use these exact Clone URLs with \`clone_repository\`. Do NOT modify or guess URLs.`,
+        `> Use these exact URLs (HTTPS or SSH) to clone. Do NOT modify or guess URLs.`,
       );
-    },
-  },
-  {
-    name: "clone_repository",
-    description:
-      "Clone a data product repository to the local workspace. " +
-      "IMPORTANT: Always call list_repositories first to get the correct URL. " +
-      "Do NOT guess or construct repository URLs — they have non-obvious nested paths.",
-    category: "repositories",
-    inputSchema: {
-      type: "object",
-      properties: {
-        repositoryUrl: { type: "string", description: "Git repository URL" },
-        targetPath: {
-          type: "string",
-          description: "Local path to clone to (optional, defaults to repo name in current directory)",
-        },
-      },
-      required: ["repositoryUrl"],
-    },
-    async handler(params) {
-      const repoUrl = params.repositoryUrl as string;
-      const targetPath = params.targetPath as string | undefined;
-
-      // Derive target directory from URL if not specified
-      const repoName = repoUrl.split("/").pop()?.replace(/\.git$/, "") ?? "repo";
-      const target = targetPath ?? repoName;
-
-      if (existsSync(target)) {
-        return text(`[PATH_EXISTS] Directory already exists: ${target}`, true);
-      }
-
-      try {
-        execSync(`git clone "${repoUrl}" "${target}"`, {
-          encoding: "utf-8",
-          timeout: 60_000,
-        });
-
-        // Get default branch
-        let branch = "main";
-        try {
-          branch = execSync("git rev-parse --abbrev-ref HEAD", {
-            cwd: target,
-            encoding: "utf-8",
-          }).trim();
-        } catch {
-          // ignore
-        }
-
-        return text(`Repository cloned successfully.\n- **Path**: ${target}\n- **Branch**: ${branch}`);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return text(`[GIT_ERROR] Failed to clone repository: ${message}`, true);
-      }
     },
   },
 ];

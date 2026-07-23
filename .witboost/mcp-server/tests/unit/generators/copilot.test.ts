@@ -51,23 +51,23 @@ describe("CopilotGenerator", () => {
     expect(gen.harnessName).toBe("copilot");
   });
 
-  it("generates mcp.json, agent.md, and prompt.md", () => {
+  it("generates mcp.json, agent.md, and instructions.md", () => {
     const files = gen.generate([agent], config, "/repo");
     const paths = files.map((f) => f.path);
 
     expect(paths).toContain(".vscode/mcp.json");
     expect(paths).toContain(".github/agents/test-agent.agent.md");
-    expect(paths).toContain(".github/prompts/test-agent.prompt.md");
+    expect(paths).toContain(".github/instructions/test-agent-lifecycle.instructions.md");
   });
 
   it("mcp.json references the MCP server", () => {
     const files = gen.generate([agent], config, "/repo");
     const mcpJson = files.find((f) => f.path === ".vscode/mcp.json")!;
-    const parsed = JSON.parse(mcpJson.content);
+    const parsed = JSON.parse(mcpJson.content.replace(/^\s*\/\/.*$/gm, ""));
 
-    expect(parsed.servers["witboost-ai-toolkit"].command).toBe("node");
+    expect(parsed.servers["witboost-ai-toolkit"].command).toBe("sh");
     expect(parsed.servers["witboost-ai-toolkit"].args).toContain(
-      ".witboost/mcp-server/dist/index.cjs",
+      ".witboost/mcp-server/run.sh",
     );
   });
 
@@ -82,14 +82,17 @@ describe("CopilotGenerator", () => {
 
   it("resolves template variables in instructions", () => {
     const files = gen.generate([agent], config, "/repo");
-    const prompt = files.find((f) => f.path === ".github/prompts/test-agent.prompt.md")!;
+    const instructions = files.find(
+      (f) => f.path === ".github/instructions/test-agent-lifecycle.instructions.md",
+    )!;
 
-    expect(prompt.content).toContain("Test Agent");
-    expect(prompt.content).toContain("A test agent for snapshot testing.");
-    expect(prompt.content).toContain("`list_blueprints`");
-    expect(prompt.content).toContain("`create_data_product`");
-    expect(prompt.content).toContain("https://test.witboost.com");
-    expect(prompt.content).not.toContain("{{");
+    expect(instructions.content).toContain("Test Agent");
+    expect(instructions.content).toContain("A test agent for snapshot testing.");
+    expect(instructions.content).toContain("list_blueprints, create_data_product");
+    expect(instructions.content).toContain("`list_blueprints`");
+    expect(instructions.content).toContain("`create_data_product`");
+    expect(instructions.content).toContain("https://test.witboost.com");
+    expect(instructions.content).not.toContain("{{");
   });
 
   it("generates files for multiple agents", () => {
@@ -101,7 +104,7 @@ describe("CopilotGenerator", () => {
     const files = gen.generate([agent, agent2], config, "/repo");
 
     expect(files.filter((f) => f.path.includes("agent.md"))).toHaveLength(2);
-    expect(files.filter((f) => f.path.includes("prompt.md"))).toHaveLength(2);
+    expect(files.filter((f) => f.path.includes("instructions.md"))).toHaveLength(2);
     // Only one mcp.json
     expect(files.filter((f) => f.path.includes("mcp.json"))).toHaveLength(1);
   });

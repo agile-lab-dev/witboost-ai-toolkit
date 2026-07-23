@@ -164,13 +164,6 @@ export class CopilotGenerator implements HarnessGenerator {
         overwrite: true,
       });
 
-      // .github/prompts/<name>.prompt.md
-      files.push({
-        path: `.github/prompts/${agent.name}.prompt.md`,
-        content: this.addCopilotConfirmation(instructions),
-        overwrite: true,
-      });
-
       // .github/instructions/<name>.instructions.md — on-demand for the default agent
       // Loaded automatically when the agent detects witboost/MCP intent in the chat,
       // without burning tokens on every unrelated conversation.

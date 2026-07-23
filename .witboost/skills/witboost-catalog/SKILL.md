@@ -9,13 +9,14 @@ tools:
   - get_template_schema
   - get_template_parameters
   - validate_against_template
+  # Domains
+  - list_domains
   # Data Products & Components
   - list_data_products
   - get_data_product
   - list_components
   # Repositories
   - list_repositories
-  - clone_repository
   # Marketplace
   - marketplace_search
   - marketplace_get_data_product
@@ -39,6 +40,11 @@ tools:
 
 1. `list_data_products` with optional `domain` filter
 2. `get_data_product` for full details including component list
+
+### Finding a Domain Reference
+
+1. `list_domains` to get the exact catalog name and ref for a domain — never guess a domain ID
+2. Use the returned `domain:<name>` ref (or `domain:<namespace>/<name>` for fully qualified refs) in templates/scaffolder parameters
 
 ### Exploring Components
 

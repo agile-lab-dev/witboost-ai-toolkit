@@ -8,6 +8,7 @@ export type JSONSchema = Record<string, unknown>;
 export type ToolCategory =
   | "blueprints"
   | "data-products"
+  | "domains"
   | "components"
   | "repositories"
   | "provisioning"

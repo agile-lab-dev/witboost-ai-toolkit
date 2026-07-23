@@ -88,6 +88,7 @@ const dataProductTools: ToolDefinition[] = [
     name: "create_data_product",
     description:
       "Create a new data product from a template. " +
+      "Use list_domains first to get the exact domain reference instead of guessing it. " +
       "Entity references must NOT include 'default/' namespace (use 'domain:finance', not 'domain:default/finance'). " +
       "For dataproduct-template: identifier must be 'domain.name.version' format (e.g. 'finance.spend-analytics.0'), " +
       "field is 'devGroup' (not developmentGroup), maturity must be 'Proposed', email is REQUIRED. " +
@@ -229,14 +230,23 @@ const dataProductTools: ToolDefinition[] = [
 
       const slug = dpRes.data.metadata?.annotations?.["gitlab.com/project-slug"];
       const srcLoc = dpRes.data.metadata?.annotations?.["backstage.io/source-location"] ?? "";
-      let cloneUrl: string | undefined;
+      let httpUrl: string | undefined;
+      let sshUrl: string | undefined;
 
       if (slug && !slug.includes("undefined") && !slug.includes("${{")) {
-        cloneUrl = `https://gitlab.com/${slug}.git`;
+        httpUrl = `https://gitlab.com/${slug}.git`;
+        sshUrl = `git@gitlab.com:${slug}.git`;
       } else {
         const match = srcLoc.replace(/^url:/, "").match(/https:\/\/gitlab\.com\/([^/]+(?:\/[^/]+)*?)(?:\/-\/|$)/);
-        if (match) cloneUrl = `https://gitlab.com/${match[1]}.git`;
+        if (match) {
+          httpUrl = `https://gitlab.com/${match[1]}.git`;
+          sshUrl = `git@gitlab.com:${match[1]}.git`;
+        }
       }
+
+      const cloneInfo = httpUrl
+        ? `HTTPS: ${httpUrl} | SSH: ${sshUrl}`
+        : "Use `list_repositories` to find the URL";
 
       const updates = params.updates as Record<string, unknown> | undefined;
       const fieldsInfo = updates ? `\nFields to update: ${Object.keys(updates).join(", ")}` : "";
@@ -244,7 +254,7 @@ const dataProductTools: ToolDefinition[] = [
       return text(
         `**Data product \`${id}\` is Git-managed and cannot be updated via API.**\n\n` +
         `To update it:\n` +
-        `1. Clone the repo: ${cloneUrl ?? "Use \\`list_repositories\\` to find the URL"}\n` +
+        `1. Clone the repo: ${cloneInfo}\n` +
         `2. Check if \`catalog-info.yaml\` starts with \`%SKELETON\`\n` +
         `3. If skeleton → edit \`parameters.yaml\` (add fields under \`parameters:\` AND \`values:\`)\n` +
         `4. If plain YAML → edit \`catalog-info.yaml\` directly\n` +

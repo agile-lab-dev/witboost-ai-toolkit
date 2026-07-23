@@ -9,7 +9,7 @@ AI toolkit that turns Witboost platform APIs into an MCP server with 33 tools, p
 The toolkit has two parts:
 
 1. **MCP Server** — a single Node.js process that exposes 33 tools across 9 categories, callable by any MCP-compatible AI client (GitHub Copilot, Claude Code, Codex, etc.)
-2. **Agent definitions** — canonical YAML+Markdown descriptions of workflows, skills, and rules that get translated into harness-specific files (`.agent.md`, `CLAUDE.md`, `AGENTS.md`, etc.)
+2. **Agent definitions** — canonical YAML+Markdown descriptions of workflows, skills, and rules that get translated into harness-specific files (`.agent.md`, `.instructions.md`, `CLAUDE.md`, `AGENTS.md`, etc.)
 
 When you run `node .witboost/mcp-server/setup.cjs --harness copilot`, the toolkit generates the files your IDE needs to connect to the MCP server and load the agent instructions. The AI can then autonomously create data products, implement business logic, validate against governance policies, and deploy — all through tool calls.
 
@@ -46,7 +46,7 @@ node .witboost/mcp-server/setup.cjs --harness copilot
 | **Blueprints** | `list_blueprints`, `get_blueprint`, `list_templates`, `get_template_schema`, `get_template_parameters`, `validate_against_template` | Browse and inspect blueprints and scaffolder templates |
 | **Data Products** | `list_data_products`, `get_data_product`, `create_data_product`, `update_data_product`, `delete_data_product` | CRUD operations on data products |
 | **Components** | `list_components`, `add_component`, `remove_component` | Manage storage, workloads, and output ports |
-| **Repositories** | `list_repositories`, `clone_repository` | Access component Git repos |
+| **Repositories** | `list_repositories` | Access component Git repos (returns HTTPS + SSH URLs) |
 | **Validation** | `build_descriptor`, `validate_descriptor`, `run_tests`, `get_test_results` | Build descriptors, validate against policies, run provisioner tests |
 | **Provisioning** | `deploy`, `undeploy`, `get_deployment_status`, `get_deployment_logs` | Deploy and monitor data products |
 | **Governance** | `list_policies`, `get_policy`, `check_policies`, `get_approval_status`, `get_descriptor_specification` | Inspect policies, check compliance, retrieve the descriptor CUE schema. ⚠️ Requires WCG to be reachable/exposed (set `WITBOOST_WCG_URL` when needed) |
@@ -71,7 +71,7 @@ The setup script translates canonical agent definitions into harness-specific fi
 
 | Harness | Generated files |
 |---------|----------------|
-| **GitHub Copilot** | `.github/agents/*.agent.md` + `.vscode/mcp.json` |
+| **GitHub Copilot** | `.github/agents/*.agent.md` + `.github/instructions/*.instructions.md` + `.vscode/mcp.json` |
 | **Claude Code** | `CLAUDE.md` + `.claude/settings.json` |
 | **Gemini Code Assist** | `GEMINI.md` + `.gemini/settings.json` |
 | **OpenAI Codex** | `AGENTS.md` |

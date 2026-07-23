@@ -34,7 +34,7 @@ Build a portable AI toolkit (`.witboost/`) that wraps Witboost platform APIs as 
 
 | # | Principle | Status | Evidence |
 |---|-----------|--------|----------|
-| I | Portability First | ✅ PASS | All toolkit files reside under `.witboost/`, `.github/agents/`, `.github/prompts/`, `.claude/`, `.vscode/` — all dot-prefixed. Copy-paste deployable. No host project modifications. Removal = delete dot-folders. |
+| I | Portability First | ✅ PASS | All toolkit files reside under `.witboost/`, `.github/agents/`, `.github/instructions/`, `.claude/`, `.vscode/` — all dot-prefixed. Copy-paste deployable. No host project modifications. Removal = delete dot-folders. |
 | II | Multi-Harness Compatibility | ✅ PASS | Canonical definitions in `.witboost/agents/` compiled to Copilot/Claude/Codex/Deep Agents formats by pluggable generators. Adding a harness = adding one generator module. Generated files are not hand-edited. |
 | III | Conversational UX | ✅ PASS | Agent instructions mandate asking for missing values rather than guessing. Agents present pick-lists for bounded choices (blueprints, environments, components). |
 | IV | API-First Design | ✅ PASS | Each MCP tool is a pure function: params → API call → structured result. Tools registered declaratively in a registry. Tools do not invoke other tools or embed orchestration. |

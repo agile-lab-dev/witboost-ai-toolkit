@@ -89,7 +89,7 @@ A developer on a team that uses Claude Code (not VS Code Copilot) receives the `
 
 **Acceptance Scenarios**:
 
-1. **Given** the canonical agent definitions in `.witboost/agents/`, **When** the setup script targets VS Code Copilot, **Then** it generates `.github/agents/*.agent.md` and `.github/prompts/*.prompt.md` files with correct Copilot agent format.
+1. **Given** the canonical agent definitions in `.witboost/agents/`, **When** the setup script targets VS Code Copilot, **Then** it generates `.github/agents/*.agent.md` and `.github/instructions/*.instructions.md` files with correct Copilot agent format.
 2. **Given** the canonical agent definitions, **When** the setup script targets Claude Code, **Then** it generates `CLAUDE.md` and `.claude/` files with correct Claude Code conventions.
 3. **Given** the canonical agent definitions, **When** the setup script targets LangChain Deep Agents, **Then** it generates `.witboost/harness/deepagents/` Python modules with pre-configured `create_deep_agent()` calls that load the MCP tools and use the canonical instructions as system prompts.
 4. **Given** a change to a canonical agent definition, **When** the setup script is re-run for any harness, **Then** the generated files reflect the change without manual editing.
@@ -109,7 +109,7 @@ A developer copies the `.witboost/` folder (and runs the setup script) into an e
 
 1. **Given** an existing data product repository with its own `package.json`, build scripts, and source code, **When** the `.witboost/` toolkit is copied in, **Then** no existing files are modified, no new dependencies appear in the host project's dependency manifests.
 2. **Given** the toolkit is installed, **When** the developer runs their existing build and test commands, **Then** all commands succeed identically to before the toolkit was added.
-3. **Given** the developer wants to remove the toolkit, **When** they delete `.witboost/`, `.github/agents/`, `.github/prompts/`, `.claude/`, `CLAUDE.md`, and `.vscode/mcp.json`, **Then** the repository returns to its exact pre-toolkit state with no residual files or configuration.
+3. **Given** the developer wants to remove the toolkit, **When** they delete `.witboost/`, `.github/agents/`, `.github/instructions/`, `.claude/`, `CLAUDE.md`, and `.vscode/mcp.json`, **Then** the repository returns to its exact pre-toolkit state with no residual files or configuration.
 
 ---
 
@@ -118,7 +118,7 @@ A developer copies the `.witboost/` folder (and runs the setup script) into an e
 - What happens when the Witboost API is unreachable? The MCP server must return clear error messages indicating connectivity failure, and agents must inform the user that platform operations are unavailable while still allowing local-only operations (e.g., reading descriptors, generating code).
 - What happens when the user's token expires mid-session? The MCP server must detect authentication failures on API calls and prompt the user to refresh their token, rather than failing silently or returning cryptic errors.
 - What happens when two developers run the toolkit simultaneously on the same data product? Each developer's MCP server operates independently via stdio transport — no shared state, no conflicts.
-- What happens when the host repository already has `.github/` files (e.g., CI workflows)? The toolkit only writes to `.github/agents/` and `.github/prompts/` subdirectories, which are unlikely to conflict. The setup script must check for existing files before overwriting and warn the user.
+- What happens when the host repository already has `.github/` files (e.g., CI workflows)? The toolkit only writes to `.github/agents/` and `.github/instructions/` subdirectories, which are unlikely to conflict. The setup script must check for existing files before overwriting and warn the user.
 - What happens when the target project doesn't have Python installed but Deep Agents harness is requested? The setup script must detect the absence of Python and skip the Deep Agents generator with a clear message, without failing the overall setup.
 - What happens when a blueprint schema contains nested or conditional fields? The Data Product Creator agent must handle complex schemas by walking the structure depth-first, asking about nested fields in logical groups.
 - What happens when a deployment fails due to infrastructure issues outside the developer's control? The Test & Deploy agent should clearly distinguish between errors the developer can fix (descriptor issues, code bugs) and infrastructure issues that require platform team involvement.
@@ -163,14 +163,14 @@ A developer copies the `.witboost/` folder (and runs the setup script) into an e
 #### Multi-Harness Support
 
 - **FR-022**: The toolkit MUST store canonical agent definitions in `.witboost/agents/` as the single source of truth.
-- **FR-023**: A setup/sync script MUST generate harness-specific files for VS Code Copilot (`.github/agents/*.agent.md`, `.github/prompts/*.prompt.md`), Claude Code (`CLAUDE.md`, `.claude/`), OpenAI Codex CLI (`codex.md` or `AGENTS.md`), and LangChain Deep Agents (`.witboost/harness/deepagents/` Python modules with `create_deep_agent()` wiring).
+- **FR-023**: A setup/sync script MUST generate harness-specific files for VS Code Copilot (`.github/agents/*.agent.md`, `.github/instructions/*.instructions.md`), Claude Code (`CLAUDE.md`, `.claude/`), OpenAI Codex CLI (`codex.md` or `AGENTS.md`), and LangChain Deep Agents (`.witboost/harness/deepagents/` Python modules with `create_deep_agent()` wiring).
 - **FR-024**: Generated harness-specific files MUST be functionally equivalent — same tools, same workflows, same conversational patterns.
 - **FR-025**: Adding support for a new harness MUST NOT require modifying existing harness generators or canonical definitions.
 - **FR-025a**: The Deep Agents generator MUST produce Python modules that use `langchain-mcp-adapters` to connect the MCP server's stdio tools, pass the canonical `instructions.md` as the system prompt, and expose agents importable as `from witboost_agents import create_dp_agent, implement_agent, deploy_agent`.
 
 #### Portability & Isolation
 
-- **FR-026**: All toolkit files MUST reside under dot-prefixed directories (`.witboost/`, `.github/agents/`, `.github/prompts/`, `.claude/`, `.vscode/`) at the repository root.
+- **FR-026**: All toolkit files MUST reside under dot-prefixed directories (`.witboost/`, `.github/agents/`, `.github/instructions/`, `.claude/`, `.vscode/`) at the repository root.
 - **FR-027**: The toolkit MUST NOT modify, create, or depend on any files in the host project's source tree, build system, or dependency manifests (`package.json`, `requirements.txt`, etc.).
 - **FR-028**: Removal of the toolkit MUST be achievable by deleting the dot-folders with no residual side effects on the host project.
 
@@ -219,4 +219,4 @@ A developer copies the `.witboost/` folder (and runs the setup script) into an e
 - For the Deep Agents harness, developers must have Python 3.11+ and the `deepagents` package installed. The generated modules use `langchain-mcp-adapters` to bridge the Node.js MCP server with the Python agent runtime.
 - The setup/sync script can be implemented as a cross-platform shell script or Node.js script that runs without additional dependencies beyond Node.js.
 - Developers work on one data product per repository (the standard Witboost data product repository structure).
-- The `.github/agents/` and `.github/prompts/` directories are not already in use by the host project for other purposes. If they are, the setup script will warn the user and require confirmation before writing.
+- The `.github/agents/` and `.github/instructions/` directories are not already in use by the host project for other purposes. If they are, the setup script will warn the user and require confirmation before writing.

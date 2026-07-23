@@ -221,7 +221,7 @@ describe("marketplace_get_data_product", () => {
     expect(resultText(result)).toContain(DP_URN);
   });
 
-  it("returns Search API errors without calling Hasura", async () => {
+    it("returns Search API errors consistently", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
       mockJson({ error: { message: "invalid filter" } }, 400),
     );

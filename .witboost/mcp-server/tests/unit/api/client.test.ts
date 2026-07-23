@@ -14,6 +14,11 @@ function makeConfig(overrides: Partial<WitboostConfig> = {}): WitboostConfig {
   };
 }
 
+function makeJwt(payload: Record<string, unknown>): string {
+  const encode = (value: Record<string, unknown>) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  return `${encode({ alg: "none", typ: "JWT" })}.${encode(payload)}.signature`;
+}
+
 describe("WitboostApiClient", () => {
   const originalFetch = globalThis.fetch;
 
@@ -226,5 +231,76 @@ describe("WitboostApiClient", () => {
 
     // Only 1 exchange call + 2 API calls = 3 total
     expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("exchanges PAT for scoped JWT", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({ jwt: "scoped-pat-jwt" }),
+    });
+
+    const client = new WitboostApiClient(makeConfig({ token: "wbat-test-pat-789" }));
+    const token = await client.getScopedBearerToken("service:computational-governance");
+
+    expect(token).toBe("scoped-pat-jwt");
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "https://test.witboost.com/api/auth/access-tokens/jwt",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          access_token: "wbat-test-pat-789",
+          duration_seconds: 3600,
+          scope: "service:computational-governance",
+        }),
+      }),
+    );
+  });
+
+  it("exchanges existing JWT for scoped session JWT", async () => {
+    const ssoJwt = makeJwt({ sub: "user-1", exp: Math.floor(Date.now() / 1000) + 3600 });
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({ jwt: "scoped-session-jwt" }),
+    });
+
+    const client = new WitboostApiClient(makeConfig({ token: ssoJwt }));
+    const token = await client.getScopedBearerToken("service:computational-governance");
+
+    expect(token).toBe("scoped-session-jwt");
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "https://test.witboost.com/api/auth/session-tokens/jwt",
+      expect.objectContaining({
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${ssoJwt}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          duration_seconds: 3600,
+          scope: "service:computational-governance",
+        }),
+      }),
+    );
+  });
+
+  it("reuses existing JWT when it already contains the requested scope", async () => {
+    const scopedJwt = makeJwt({
+      sub: "user-1",
+      scope: "openid service:computational-governance",
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    });
+    globalThis.fetch = vi.fn();
+
+    const client = new WitboostApiClient(makeConfig({ token: scopedJwt }));
+    const token = await client.getScopedBearerToken("service:computational-governance");
+
+    expect(token).toBe(scopedJwt);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 });

@@ -49,7 +49,7 @@ from and what columns/types they expose.
 5. Use `check_policies` to verify governance compliance on specific components
 6. **Loop until all phases COMPLETED with zero errors — never stop early**
 7. On `COR_PARSE_DESCR_1` (parse error): diff against a working DP to find the problem
-8. **Fixing component errors** (empty schema, wrong endpoint, missing fields): get the repo URL from `list_repositories`, clone it, edit `catalog-info.yaml` (or `parameters.yaml` for skeleton repos), push. The preview API with `bypassCache=true` will pick up the changes from Git immediately. **Never create new repos** — the scaffolder already created them.
+8. **Fixing component errors** (empty schema, wrong endpoint, missing fields): get the repo URL from `list_repositories`, clone it, edit `catalog-info.yaml` (or `parameters.yaml` for skeleton repos), push. Rebuild the descriptor after the push to pick up the latest Git changes. **Never create new repos** — the scaffolder already created them.
 
 ### Phase 3b — Test
 
@@ -134,7 +134,7 @@ Component repos use one of two patterns — **always check before editing**:
 ### Repositories
 - **Repo URLs come from catalog entities** — always use `list_repositories` to get the correct clone URL for each component. Never construct, guess, or create repo URLs manually.
 - **Never create repos via push-to-create** — the scaffolder creates them. If the scaffolder reports success, the repo exists. Clone it, edit it, push to it.
-- **When fixing validation errors on components** — clone the component's repo (from `list_repositories`), edit `catalog-info.yaml` directly (or `parameters.yaml` for SKELETON repos), push. The `bypassCache=true` flag on `build_descriptor` ensures fresh data is read from Git.
+- **When fixing validation errors on components** — clone the component's repo (from `list_repositories`), edit `catalog-info.yaml` directly (or `parameters.yaml` for SKELETON repos), push, then rebuild the descriptor before validating again.
 
 ### Implementation
 - **Read before writing** — always understand existing patterns first

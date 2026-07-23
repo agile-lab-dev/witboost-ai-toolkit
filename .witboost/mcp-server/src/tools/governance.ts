@@ -9,6 +9,8 @@ function apiError(code: string, message: string): ToolResult {
   return text(`[${code}] ${message}`, true);
 }
 
+const COMPUTATIONAL_GOVERNANCE_SCOPE = "service:computational-governance";
+
 /** Resolve the WCG REST base URL: explicit config, or derived from base URL (ui.X → wcg.X) */
 function wcgBaseUrl(ctx: ToolContext): string {
   if (ctx.config.wcgUrl) return ctx.config.wcgUrl;
@@ -34,7 +36,7 @@ async function wcgGet<T>(
   if (params) {
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   }
-  const bearerToken = await ctx.api.getBearerToken();
+  const bearerToken = await ctx.api.getScopedBearerToken(COMPUTATIONAL_GOVERNANCE_SCOPE);
   try {
     const response = await fetch(url.toString(), {
       headers: { Authorization: `Bearer ${bearerToken}`, "Content-Type": "application/json" },
@@ -98,10 +100,16 @@ const governanceTools: ToolDefinition[] = [
             "Optional list of governance_entity_id UUIDs to fetch. " +
             "If omitted, returns all active policies.",
         },
+        environment: {
+          type: "string",
+          description:
+            "Optional environment filter applied server-side by WCG, e.g. 'development', 'qa', or 'production'.",
+        },
       },
     },
     async handler(params, ctx) {
       const ids = params.policyIds as string[] | undefined;
+      const environment = params.environment as string | undefined;
 
       const query: Record<string, string> = {
         status: "enabled,grace",
@@ -111,6 +119,7 @@ const governanceTools: ToolDefinition[] = [
         "sort-order": "asc",
       };
       if (ids?.length) query["id-in"] = ids.join(",");
+      if (environment) query.env = environment;
 
       const res = await wcgGet<WcgListResponse>(ctx, "/v1/computational-governance/policies", query);
       if (!res.ok) return apiError("WCG_ERROR", res.error);

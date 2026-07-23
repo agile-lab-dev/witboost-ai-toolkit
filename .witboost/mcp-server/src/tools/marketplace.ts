@@ -50,6 +50,35 @@ interface SearchResponse {
   previousPageCursor?: string;
 }
 
+type SearchFilter = AtomicSearchFilter | ComplexSearchFilter;
+
+interface AtomicSearchFilter {
+  field: string;
+  operator: "eq" | "in";
+  value: string | string[];
+}
+
+interface ComplexSearchFilter {
+  operator: "AND" | "OR";
+  filters: SearchFilter[];
+}
+
+const MARKETPLACE_TYPE = "marketplace-projects";
+const FIELD_ENVIRONMENT = "_computedInfo.environment";
+const FIELD_KIND = "_computedInfo.kind";
+const FIELD_SYSTEM_URN = "_computedInfo.system_urn";
+const FIELD_URN = "_computedInfo.urn";
+const KIND_SYSTEM = "system";
+const KIND_COMPONENT = "component";
+
+function eqFilter(field: string, value: string): AtomicSearchFilter {
+  return { field, operator: "eq", value };
+}
+
+function andFilter(...filters: SearchFilter[]): SearchFilter {
+  return filters.length === 1 ? filters[0] : { operator: "AND", filters };
+}
+
 // ── Search API helper ───────────────────────────────────────────────────
 
 async function searchQuery(
@@ -57,7 +86,7 @@ async function searchQuery(
   body: {
     term?: string;
     types?: string[];
-    filters?: Record<string, unknown>;
+    filters?: SearchFilter;
     pageLimit?: number;
     pageCursor?: string;
   },
@@ -256,8 +285,11 @@ const marketplaceTools: ToolDefinition[] = [
 
       const res = await searchQuery(ctx, {
         term,
-        types: ["marketplace-projects"],
-        filters: { "_computedInfo.environment": environment },
+        types: [MARKETPLACE_TYPE],
+        filters: andFilter(
+          eqFilter(FIELD_ENVIRONMENT, environment),
+          eqFilter(FIELD_KIND, KIND_SYSTEM),
+        ),
         pageLimit,
         pageCursor,
       });
@@ -310,11 +342,12 @@ const marketplaceTools: ToolDefinition[] = [
 
       const res = await searchQuery(ctx, {
         term: nameFromUrn(externalId),
-        types: ["marketplace-projects"],
-        filters: {
-          "_computedInfo.urn": externalId,
-          "_computedInfo.environment": environment,
-        },
+        types: [MARKETPLACE_TYPE],
+        filters: andFilter(
+          eqFilter(FIELD_URN, externalId),
+          eqFilter(FIELD_ENVIRONMENT, environment),
+          eqFilter(FIELD_KIND, KIND_SYSTEM),
+        ),
         pageLimit: 5,
       });
 
@@ -357,16 +390,20 @@ const marketplaceTools: ToolDefinition[] = [
       const externalId = params.externalId as string;
       const environment = (params.environment as string) ?? "production";
 
-      // Server-side filter for environment; client-side for system_urn + kind
-      // because _computedInfo.system_urn is not reliably supported as a PG search filter.
+      // Keep the client-side check below as a guard for stale indexes, but send
+      // all supported filters to search so pagination happens on the narrowest set.
       const allDocs: SearchDocument[] = [];
       let cursor: string | undefined;
 
       for (let page = 0; page < 5; page++) {
         const res = await searchQuery(ctx, {
           term: "",
-          types: ["marketplace-projects"],
-          filters: { "_computedInfo.environment": environment },
+          types: [MARKETPLACE_TYPE],
+          filters: andFilter(
+            eqFilter(FIELD_ENVIRONMENT, environment),
+            eqFilter(FIELD_KIND, KIND_COMPONENT),
+            eqFilter(FIELD_SYSTEM_URN, externalId),
+          ),
           pageLimit: 100,
           pageCursor: cursor,
         });
@@ -430,11 +467,12 @@ const marketplaceTools: ToolDefinition[] = [
 
       const res = await searchQuery(ctx, {
         term: nameFromUrn(externalId),
-        types: ["marketplace-projects"],
-        filters: {
-          "_computedInfo.urn": externalId,
-          "_computedInfo.environment": environment,
-        },
+        types: [MARKETPLACE_TYPE],
+        filters: andFilter(
+          eqFilter(FIELD_URN, externalId),
+          eqFilter(FIELD_ENVIRONMENT, environment),
+          eqFilter(FIELD_KIND, KIND_COMPONENT),
+        ),
         pageLimit: 5,
       });
 

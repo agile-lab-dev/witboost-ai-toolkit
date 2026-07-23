@@ -7,11 +7,6 @@ api:
   # Override: WITBOOST_BASE_URL
   # baseUrl: "https://witboost.example.com"
 
-  # Hasura GraphQL endpoint URL (optional)
-  # If not set, derived from baseUrl by replacing the "ui." host prefix with "hasura."
-  # Override: WITBOOST_HASURA_URL
-  # hasuraUrl: "https://hasura.witboost.example.com/v1/graphql"
-
   # API version prefix
   # Default: "v1"
   version: "v1"

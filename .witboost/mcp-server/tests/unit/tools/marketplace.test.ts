@@ -2,10 +2,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ToolContext } from "../../../src/tools/types.js";
 import type { WitboostConfig } from "../../../src/config/schema.js";
 import { WitboostApiClient } from "../../../src/api/client.js";
-import { getTool, clearRegistry } from "../../../src/tools/registry.js";
+import { getTool } from "../../../src/tools/registry.js";
 
 // Import marketplace tools so they register themselves
 import "../../../src/tools/marketplace.js";
+
+const DP_URN = "urn:dmb:dp:marketing:customer-360:1";
+const OUTPUT_PORT_URN = "urn:dmb:cmp:marketing:customer-360:1:customers-op";
 
 function makeConfig(overrides: Partial<WitboostConfig> = {}): WitboostConfig {
   return {
@@ -27,23 +30,128 @@ function makeContext(overrides: Partial<WitboostConfig> = {}): ToolContext {
   };
 }
 
-function mockGraphqlResponse(data: unknown) {
+function mockJson(data: unknown, status = 200) {
   return {
-    ok: true,
-    status: 200,
+    ok: status >= 200 && status < 300,
+    status,
     headers: new Headers({ "content-type": "application/json" }),
-    json: async () => ({ data }),
+    json: async () => data,
+    text: async () => JSON.stringify(data),
   };
 }
 
-function mockGraphqlError(errors: Array<{ message: string }>) {
+function mockSearchResponse(documents: Array<Record<string, unknown>>, nextPageCursor?: string) {
   return {
-    ok: true,
-    status: 200,
-    headers: new Headers({ "content-type": "application/json" }),
-    json: async () => ({ errors }),
+    results: documents.map((document) => ({ type: "marketplace-projects", document })),
+    nextPageCursor,
   };
 }
+
+function fetchCall(index = 0): [string, RequestInit] {
+  const [url, init] = vi.mocked(globalThis.fetch).mock.calls[index];
+  return [String(url), init as RequestInit];
+}
+
+function postedBody(index = 0): Record<string, unknown> {
+  const [, init] = fetchCall(index);
+  return JSON.parse(String(init.body)) as Record<string, unknown>;
+}
+
+function resultText(result: Awaited<ReturnType<NonNullable<ReturnType<typeof getTool>>["handler"]>>): string {
+  return (result.content[0] as { type: "text"; text: string }).text;
+}
+
+function dataProductDocument(overrides: Record<string, unknown> = {}) {
+  return {
+    title: "Customer 360",
+    version: "1.0.0",
+    description: "Unified customer view",
+    tags: [{ tagFQN: "pii" }],
+    _computedInfo: {
+      urn: DP_URN,
+      kind: "system",
+      environment: "production",
+      domain: { name: "marketing", external_id: "domain:marketing" },
+      taxonomy: { name: "default", external_id: "taxonomy:default" },
+      owner: { ref: "user:default/john", displayName: "John Doe" },
+      consumable: true,
+      publishedAt: "2026-01-15",
+      in_data_contract_lineage: true,
+    },
+    ...overrides,
+  };
+}
+
+function outputPortDocument(overrides: Record<string, unknown> = {}) {
+  return {
+    title: "Customers Output Port",
+    version: "1.0.0",
+    description: "Customer data output",
+    kind: "outputport",
+    outputPortType: "dremio",
+    technology: "Dremio",
+    platform: "analytics",
+    dataContract: {
+      SLA: { upTime: "99.9%", timeliness: "daily" },
+      schema: [{ name: "customer_id", dataType: "string", description: "Customer id" }],
+    },
+    _computedInfo: {
+      urn: OUTPUT_PORT_URN,
+      kind: "component",
+      environment: "production",
+      system_urn: DP_URN,
+      parent: "Customer 360",
+      consumable: true,
+    },
+    ...overrides,
+  };
+}
+
+describe("marketplace_search", () => {
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("sends structured environment and system filters to the Search API", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      mockJson(mockSearchResponse([dataProductDocument()])),
+    );
+
+    const result = await getTool("marketplace_search")!.handler(
+      { term: "customer", environment: "production" },
+      makeContext(),
+    );
+
+    expect(result.isError).toBeFalsy();
+    expect(resultText(result)).toContain("Customer 360");
+
+    const [url, init] = fetchCall();
+    expect(url).toBe("https://ui.test.witboost.com/api/search/query");
+    expect(init.headers).toEqual(
+      expect.objectContaining({ Authorization: "Bearer test-token" }),
+    );
+    expect(postedBody()).toEqual(
+      expect.objectContaining({
+        term: "customer",
+        types: ["marketplace-projects"],
+        pageLimit: 15,
+        filters: {
+          operator: "AND",
+          filters: [
+            { field: "_computedInfo.environment", operator: "eq", value: "production" },
+            { field: "_computedInfo.kind", operator: "eq", value: "system" },
+          ],
+        },
+      }),
+    );
+  });
+});
 
 describe("marketplace_get_data_product", () => {
   const originalFetch = globalThis.fetch;
@@ -58,170 +166,74 @@ describe("marketplace_get_data_product", () => {
 
   it("returns data product details on success", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
-      mockGraphqlResponse({
-        instances: [
-          {
-            id: 42,
-            name: "customer-360",
-            display_name: "Customer 360",
-            version: "1.0.0",
-            description: "Unified customer view",
-            external_id: "urn:dmb:dp:marketing:customer-360:1",
-            owner: "user:default/john",
-            owner_display_name: "John Doe",
-            published_at: "2026-01-15",
-            kind: "dataproduct",
-            type: "dataproduct",
-            shoppable: true,
-            consumable: true,
-            domains: [{ data: { name: "marketing", external_id: "domain:marketing" } }],
-            taxonomy: { id: 1, external_id: "taxonomy:default", name: "default" },
-            environment: { id: 1, name: "production" },
-            consumedDcsCount: { aggregate: { count: 2 } },
-            ownedDcsCount: { aggregate: { count: 3 } },
-          },
-        ],
-      }),
+      mockJson(mockSearchResponse([dataProductDocument()])),
     );
 
-    const tool = getTool("marketplace_get_data_product");
-    expect(tool).toBeDefined();
-
-    const ctx = makeContext({ hasuraJwt: "valid-hasura-jwt" });
-    const result = await tool!.handler({ id: 42 }, ctx);
+    const result = await getTool("marketplace_get_data_product")!.handler(
+      { externalId: DP_URN, environment: "production" },
+      makeContext(),
+    );
 
     expect(result.isError).toBeFalsy();
-    const text = (result.content[0] as { type: "text"; text: string }).text;
+    const text = resultText(result);
     expect(text).toContain("Customer 360");
     expect(text).toContain("1.0.0");
+    expect(text).toContain("John Doe");
   });
 
-  it("uses hasuraJwt for Hasura calls", async () => {
+  it("filters data products by urn, environment, and system kind", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
-      mockGraphqlResponse({
-        instances: [
-          {
-            id: 1,
-            name: "test-dp",
-            display_name: "Test DP",
-            version: "0.1.0",
-            domains: [],
-            environment: { name: "production" },
-            consumedDcsCount: { aggregate: { count: 0 } },
-            ownedDcsCount: { aggregate: { count: 0 } },
-          },
-        ],
-      }),
+      mockJson(mockSearchResponse([dataProductDocument()])),
     );
 
-    const ctx = makeContext({ hasuraJwt: "my-hasura-jwt" });
-    await getTool("marketplace_get_data_product")!.handler({ id: 1 }, ctx);
+    await getTool("marketplace_get_data_product")!.handler(
+      { externalId: DP_URN, environment: "production" },
+      makeContext(),
+    );
 
-    const [url, opts] = vi.mocked(globalThis.fetch).mock.calls[0];
-    expect(url).toBe("https://hasura.test.witboost.com/v1/graphql");
-    expect((opts as RequestInit).headers).toEqual(
+    expect(postedBody()).toEqual(
       expect.objectContaining({
-        Authorization: "Bearer my-hasura-jwt",
-      }),
-    );
-  });
-
-  it("uses explicit hasuraUrl when configured", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      mockGraphqlResponse({
-        instances: [
-          {
-            id: 1,
-            name: "test-dp",
-            display_name: "Test DP",
-            version: "0.1.0",
-            domains: [],
-            environment: { name: "production" },
-            consumedDcsCount: { aggregate: { count: 0 } },
-            ownedDcsCount: { aggregate: { count: 0 } },
-          },
-        ],
-      }),
-    );
-
-    const ctx = makeContext({
-      hasuraJwt: "jwt",
-      hasuraUrl: "https://custom-hasura.corp.net/v1/graphql",
-    });
-    await getTool("marketplace_get_data_product")!.handler({ id: 1 }, ctx);
-
-    const [url] = vi.mocked(globalThis.fetch).mock.calls[0];
-    expect(url).toBe("https://custom-hasura.corp.net/v1/graphql");
-  });
-
-  it("falls back to exchanged JWT when hasuraJwt is not set", async () => {
-    const jwtExchangeResponse = {
-      ok: true,
-      status: 200,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({ jwt: "exchanged-jwt" }),
-    };
-    globalThis.fetch = vi.fn()
-      .mockResolvedValueOnce(jwtExchangeResponse)
-      .mockResolvedValueOnce(
-        mockGraphqlResponse({
-          instances: [
-            {
-              id: 1,
-              name: "test-dp",
-              display_name: "Test DP",
-              version: "0.1.0",
-              domains: [],
-              environment: { name: "production" },
-              consumedDcsCount: { aggregate: { count: 0 } },
-              ownedDcsCount: { aggregate: { count: 0 } },
-            },
+        term: "customer-360",
+        types: ["marketplace-projects"],
+        pageLimit: 5,
+        filters: {
+          operator: "AND",
+          filters: [
+            { field: "_computedInfo.urn", operator: "eq", value: DP_URN },
+            { field: "_computedInfo.environment", operator: "eq", value: "production" },
+            { field: "_computedInfo.kind", operator: "eq", value: "system" },
           ],
-        }),
-      );
-
-    const ctx = makeContext({ token: "wbat-my-pat" });
-    await getTool("marketplace_get_data_product")!.handler({ id: 1 }, ctx);
-
-    // First call: JWT exchange
-    expect(vi.mocked(globalThis.fetch).mock.calls[0][0]).toBe(
-      "https://ui.test.witboost.com/api/auth/access-tokens/jwt",
-    );
-    // Second call: Hasura with exchanged JWT
-    const [hasuraUrl, hasuraOpts] = vi.mocked(globalThis.fetch).mock.calls[1];
-    expect(hasuraUrl).toBe("https://hasura.test.witboost.com/v1/graphql");
-    expect((hasuraOpts as RequestInit).headers).toEqual(
-      expect.objectContaining({
-        Authorization: "Bearer exchanged-jwt",
+        },
       }),
     );
   });
 
-  it("returns error when data product not found", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      mockGraphqlResponse({ instances: [] }),
+  it("returns error when data product is not found", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(mockJson(mockSearchResponse([])));
+
+    const result = await getTool("marketplace_get_data_product")!.handler(
+      { externalId: DP_URN, environment: "production" },
+      makeContext(),
     );
 
-    const ctx = makeContext({ hasuraJwt: "valid-jwt" });
-    const result = await getTool("marketplace_get_data_product")!.handler({ id: 999 }, ctx);
-
     expect(result.isError).toBe(true);
-    const text = (result.content[0] as { type: "text"; text: string }).text;
-    expect(text).toContain("No data product found");
-    expect(text).toContain("999");
+    expect(resultText(result)).toContain("No data product found");
+    expect(resultText(result)).toContain(DP_URN);
   });
 
-  it("returns error on Hasura GraphQL error", async () => {
+  it("returns Search API errors without calling Hasura", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
-      mockGraphqlError([{ message: "claims key: 'https://hasura.io/jwt/claims' not found" }]),
+      mockJson({ error: { message: "invalid filter" } }, 400),
     );
 
-    const ctx = makeContext({ hasuraJwt: "bad-jwt" });
-    const result = await getTool("marketplace_get_data_product")!.handler({ id: 1 }, ctx);
+    const result = await getTool("marketplace_get_data_product")!.handler(
+      { externalId: DP_URN, environment: "production" },
+      makeContext(),
+    );
 
     expect(result.isError).toBe(true);
-    const text = (result.content[0] as { type: "text"; text: string }).text;
-    expect(text).toContain("HASURA_ERROR");
+    expect(resultText(result)).toContain("[SEARCH_ERROR] invalid filter");
+    expect(fetchCall()[0]).toBe("https://ui.test.witboost.com/api/search/query");
   });
 });
 
@@ -238,91 +250,119 @@ describe("marketplace_get_output_ports", () => {
 
   it("returns output ports for a data product", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
-      mockGraphqlResponse({
-        instances: [
-          {
-            id: 42,
-            name: "customer-360",
-            display_name: "Customer 360",
-            version: "1.0.0",
-            description: "Unified view",
-            shoppable: true,
+      mockJson(mockSearchResponse([
+        outputPortDocument(),
+        outputPortDocument({
+          title: "Other Output Port",
+          _computedInfo: {
+            urn: "urn:dmb:cmp:marketing:other:1:op",
+            kind: "component",
+            environment: "production",
+            system_urn: "urn:dmb:dp:marketing:other:1",
+            parent: "Other",
             consumable: true,
-            descriptor: {},
-            components: [
-              {
-                data: {
-                  id: 100,
-                  name: "customer-output-port",
-                  display_name: "Customer Output Port",
-                  external_id: "urn:dmb:cmp:marketing:customer-360:1:output-port",
-                  kind: "outputport",
-                  type: "dremio",
-                  version: "1.0.0",
-                  description: "Customer data output",
-                  consumable: true,
-                  shoppable: true,
-                  descriptor: {},
-                },
-              },
-            ],
           },
-        ],
-      }),
+        }),
+      ])),
     );
 
-    const ctx = makeContext({ hasuraJwt: "valid-jwt" });
-    const result = await getTool("marketplace_get_output_ports")!.handler({ id: 42 }, ctx);
+    const result = await getTool("marketplace_get_output_ports")!.handler(
+      { externalId: DP_URN, environment: "production" },
+      makeContext(),
+    );
 
     expect(result.isError).toBeFalsy();
-    const text = (result.content[0] as { type: "text"; text: string }).text;
-    expect(text).toContain("Customer Output Port");
+    const text = resultText(result);
+    expect(text).toContain("Customers Output Port");
     expect(text).toContain("Customer 360");
+    expect(text).not.toContain("Other Output Port");
   });
 
-  it("uses hasuraJwt for authentication", async () => {
+  it("filters output ports by environment, component kind, and system urn", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
-      mockGraphqlResponse({
-        instances: [
-          {
-            id: 1,
-            name: "dp",
-            display_name: "DP",
-            components: [{ data: { id: 10, name: "port", display_name: "Port" } }],
-          },
-        ],
-      }),
+      mockJson(mockSearchResponse([outputPortDocument()])),
     );
 
-    const ctx = makeContext({ hasuraJwt: "hasura-jwt-123" });
-    await getTool("marketplace_get_output_ports")!.handler({ id: 1 }, ctx);
+    await getTool("marketplace_get_output_ports")!.handler(
+      { externalId: DP_URN, environment: "production" },
+      makeContext(),
+    );
 
-    const [url, opts] = vi.mocked(globalThis.fetch).mock.calls[0];
-    expect(url).toBe("https://hasura.test.witboost.com/v1/graphql");
-    expect((opts as RequestInit).headers).toEqual(
-      expect.objectContaining({ Authorization: "Bearer hasura-jwt-123" }),
+    expect(postedBody()).toEqual(
+      expect.objectContaining({
+        term: "",
+        types: ["marketplace-projects"],
+        pageLimit: 100,
+        filters: {
+          operator: "AND",
+          filters: [
+            { field: "_computedInfo.environment", operator: "eq", value: "production" },
+            { field: "_computedInfo.kind", operator: "eq", value: "component" },
+            { field: "_computedInfo.system_urn", operator: "eq", value: DP_URN },
+          ],
+        },
+      }),
     );
   });
 
-  it("returns message when no output ports", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      mockGraphqlResponse({
-        instances: [
-          {
-            id: 42,
-            name: "empty-dp",
-            display_name: "Empty DP",
-            components: [],
-          },
-        ],
-      }),
+  it("returns an error message when no output ports are found", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(mockJson(mockSearchResponse([])));
+
+    const result = await getTool("marketplace_get_output_ports")!.handler(
+      { externalId: DP_URN, environment: "production" },
+      makeContext(),
     );
 
-    const ctx = makeContext({ hasuraJwt: "valid-jwt" });
-    const result = await getTool("marketplace_get_output_ports")!.handler({ id: 42 }, ctx);
+    expect(result.isError).toBe(true);
+    expect(resultText(result)).toContain("No output ports found");
+  });
+});
+
+describe("marketplace_get_output_port", () => {
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("filters output port lookup and fetches the data contract via REST", async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(mockJson(mockSearchResponse([outputPortDocument()])))
+      .mockResolvedValueOnce(mockJson({
+        identifier: { externalId: OUTPUT_PORT_URN, environment: "production" },
+        guardianPolicyId: "policy-123",
+      }));
+
+    const result = await getTool("marketplace_get_output_port")!.handler(
+      { externalId: OUTPUT_PORT_URN, environment: "production" },
+      makeContext(),
+    );
 
     expect(result.isError).toBeFalsy();
-    const text = (result.content[0] as { type: "text"; text: string }).text;
-    expect(text).toContain("no output ports");
+    const text = resultText(result);
+    expect(text).toContain("Customers Output Port");
+    expect(text).toContain("policy-123");
+
+    expect(postedBody()).toEqual(
+      expect.objectContaining({
+        term: "customers-op",
+        filters: {
+          operator: "AND",
+          filters: [
+            { field: "_computedInfo.urn", operator: "eq", value: OUTPUT_PORT_URN },
+            { field: "_computedInfo.environment", operator: "eq", value: "production" },
+            { field: "_computedInfo.kind", operator: "eq", value: "component" },
+          ],
+        },
+      }),
+    );
+
+    expect(fetchCall(1)[0]).toBe(
+      `https://ui.test.witboost.com/api/marketplace/v1/data-contracts/${encodeURIComponent(OUTPUT_PORT_URN)}?environment=production`,
+    );
   });
 });

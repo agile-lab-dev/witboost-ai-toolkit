@@ -49,7 +49,7 @@ node .witboost/mcp-server/setup.cjs --harness copilot
 | **Repositories** | `list_repositories`, `clone_repository` | Access component Git repos |
 | **Validation** | `build_descriptor`, `validate_descriptor`, `run_tests`, `get_test_results` | Build descriptors, validate against policies, run provisioner tests |
 | **Provisioning** | `deploy`, `undeploy`, `get_deployment_status`, `get_deployment_logs` | Deploy and monitor data products |
-| **Governance** | `list_policies`, `get_policy`, `check_policies`, `get_approval_status`, `get_descriptor_specification` | Inspect policies, check compliance, retrieve the descriptor CUE schema |
+| **Governance** | `list_policies`, `get_policy`, `check_policies`, `get_approval_status`, `get_descriptor_specification` | Inspect policies, check compliance, retrieve the descriptor CUE schema. ⚠️ Requires WCG to be reachable/exposed (set `WITBOOST_WCG_URL` when needed) |
 | **Marketplace** | `marketplace_search`, `marketplace_get_data_product`, `marketplace_get_output_ports`, `marketplace_get_output_port` | Discover published data products and their schemas |
 | **Scaffolder** | (internal) | Template execution via the Witboost scaffolder API |
 

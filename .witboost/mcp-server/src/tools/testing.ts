@@ -15,7 +15,7 @@ interface ValidateResult {
   validationPhaseKind: string;
   status: string;
   errors: {
-    errors: Array<{ code?: string; userMessage?: string; message?: string; input?: string; inputErrorField?: string; moreInfo?: string }>;
+    errors: Array<string | { code?: string; userMessage?: string; message?: string; input?: string; inputErrorField?: string; moreInfo?: string }>;
     code?: string;
     userMessage?: string;
     input?: string;
@@ -28,6 +28,184 @@ interface ValidateResult {
 interface ValidateResponse {
   httpStatus: number;
   body: { results: ValidateResult[] };
+}
+
+interface ProvisioningPlanResponse {
+  provisioningPlans?: ProvisioningPlan[];
+}
+
+interface ProvisioningPlan {
+  environment?: string;
+  dag?: ProvisioningTask;
+}
+
+interface ProvisioningTask {
+  id?: string;
+  action?: string;
+  displayName?: string;
+  name?: string;
+  status?: string;
+  result?: string | null;
+  version?: string;
+  startTime?: string;
+  stopTime?: string;
+  dependsOnTasks?: ProvisioningTask[];
+}
+
+interface PolicyEvaluationReport {
+  status?: string;
+  id?: string;
+  evaluationScope?: string;
+  environment?: string;
+  evaluationResults?: PolicyEvaluationResult[];
+}
+
+interface PolicyEvaluationResult {
+  governanceEntityId?: string;
+  governanceEntityStatus?: string;
+  governanceEntityType?: string;
+  outcome?: string;
+  resource?: { id?: string; displayName?: string; environment?: string; resourceType?: string };
+  result?: { isError?: boolean; satisfiesPolicy?: boolean; errors?: string[] };
+  creationTime?: string;
+}
+
+type ValidationSeverity = "passed" | "warning" | "failed";
+
+interface PolicyEvaluationSummary {
+  planId?: string;
+  planStatus?: string;
+  planStartTime?: string;
+  validationTaskId?: string;
+  reportStatus?: string;
+  reportId?: string;
+  evaluations: PolicyEvaluationResult[];
+}
+
+function dataProductIdToUrn(dataProductId: string): string {
+  if (dataProductId.startsWith("urn:")) return dataProductId;
+
+  const parts = dataProductId.split(".");
+  if (parts.length < 3) return dataProductId;
+
+  const domain = parts[0];
+  const majorVersion = parts[parts.length - 1];
+  const name = parts.slice(1, -1).join(".");
+  return `urn:dmb:dp:${domain}:${name}:${majorVersion}`;
+}
+
+function descriptorVersion(descriptor: string, fallback: string): string {
+  try {
+    const parsed = parseYaml(descriptor) as { version?: unknown } | undefined;
+    return typeof parsed?.version === "string" ? parsed.version : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function flattenTasks(task: ProvisioningTask | undefined): ProvisioningTask[] {
+  if (!task) return [];
+  return [task, ...(task.dependsOnTasks ?? []).flatMap(flattenTasks)];
+}
+
+function parsePolicyEvaluationReport(task: ProvisioningTask | undefined): PolicyEvaluationReport | undefined {
+  if (!task?.result) return undefined;
+  try {
+    return JSON.parse(task.result) as PolicyEvaluationReport;
+  } catch {
+    return undefined;
+  }
+}
+
+function policyEvaluationSeverity(evaluation: PolicyEvaluationResult): ValidationSeverity {
+  const outcome = evaluation.outcome?.toLowerCase();
+  const governanceStatus = evaluation.governanceEntityStatus?.toLowerCase();
+  const satisfiesPolicy = evaluation.result?.satisfiesPolicy;
+
+  if (satisfiesPolicy === true || outcome === "ok") return "passed";
+  if (outcome === "warning" || governanceStatus === "grace") return "warning";
+  if (evaluation.result?.isError || outcome === "error" || outcome === "failed") return "failed";
+  if (satisfiesPolicy === false) return governanceStatus === "enabled" ? "failed" : "warning";
+
+  return "passed";
+}
+
+function validationPhaseSeverity(result: ValidateResult, policySummary?: PolicyEvaluationSummary): ValidationSeverity {
+  const hasErrors = (result.errors?.errors?.length ?? 0) > 0 || !!result.errors?.userMessage;
+  if (result.status === "PASSED" || result.status === "OK") return "passed";
+  if (result.status === "COMPLETED" && !hasErrors) return "passed";
+
+  if (result.validationPhaseKind.startsWith("POLICY_") && policySummary) {
+    const policySeverities = policySummary.evaluations.map(policyEvaluationSeverity);
+    if (policySeverities.includes("failed")) return "failed";
+    if (policySeverities.includes("warning")) return "warning";
+  }
+
+  return "failed";
+}
+
+function severityIcon(severity: ValidationSeverity): string {
+  if (severity === "passed") return "✅";
+  if (severity === "warning") return "⚠️";
+  return "❌";
+}
+
+function countBySeverity<T>(items: T[], classifier: (item: T) => ValidationSeverity) {
+  return items.reduce(
+    (acc, item) => {
+      acc[classifier(item)] += 1;
+      return acc;
+    },
+    { passed: 0, warning: 0, failed: 0 },
+  );
+}
+
+function firstErrorLine(error: string): string {
+  return error.split("\n")[0];
+}
+
+function descriptorLocations(error: string): string[] {
+  return error
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => /^descriptor:\d+:\d+$/.test(line));
+}
+
+async function getLatestPolicyEvaluationSummary(
+  ctx: Parameters<ToolDefinition["handler"]>[1],
+  dataProductId: string,
+  environment: string,
+  version: string,
+): Promise<PolicyEvaluationSummary | undefined> {
+  const planRes = await ctx.api.get<ProvisioningPlanResponse>("/api/builder/provisioningplan", {
+    "data-product-id": dataProductIdToUrn(dataProductId),
+    environments: environment,
+    "include-snapshot": "true",
+    "include-descriptors": "false",
+    version,
+    operations: "VALIDATION",
+    offset: 0,
+    limit: 1,
+    ordering: "desc",
+  });
+
+  if (!planRes.ok) return undefined;
+
+  const plan = planRes.data?.provisioningPlans?.[0];
+  const cgpTask = flattenTasks(plan?.dag).find((task) => task.action === "POLICY_VALIDATE_COMPONENT");
+  const report = parsePolicyEvaluationReport(cgpTask);
+
+  if (!report?.evaluationResults) return undefined;
+
+  return {
+    planId: plan?.dag?.id,
+    planStatus: plan?.dag?.status,
+    planStartTime: plan?.dag?.startTime,
+    validationTaskId: cgpTask?.id,
+    reportStatus: report.status,
+    reportId: report.id,
+    evaluations: report.evaluationResults,
+  };
 }
 
 const testingTools: ToolDefinition[] = [
@@ -194,6 +372,10 @@ const testingTools: ToolDefinition[] = [
       }
 
       // API validation: build descriptor then validate
+      if (!dpId) {
+        return text("[VALIDATION_ERROR] Provide dataProductId for API validation.", true);
+      }
+
       const environment = params.environment as string;
       const version = (params.version as string) ?? "0.0.0";
 
@@ -255,23 +437,54 @@ const testingTools: ToolDefinition[] = [
         return text("Validation completed but returned no results.");
       }
 
-      const isSuccess = (r: ValidateResult) => {
-        const hasErrors = (r.errors?.errors?.length ?? 0) > 0 || !!r.errors?.userMessage;
-        if (r.status === "PASSED" || r.status === "OK") return true;
-        if (r.status === "COMPLETED" && !hasErrors) return true;
-        return false;
-      };
-
-      const passed = results.filter(isSuccess);
-      const failed = results.filter((r) => !isSuccess(r));
+      const effectiveVersion = descriptorVersion(descriptor, version);
+      const policySummary = await getLatestPolicyEvaluationSummary(ctx, dpId, environment, effectiveVersion);
+      const phaseCounts = countBySeverity(results, (r) => validationPhaseSeverity(r, policySummary));
 
       const lines: string[] = [
         `Validation for **${dpId}** (env: ${environment}):\n`,
-        `**${passed.length}** passed, **${failed.length}** failed\n`,
+        `**${phaseCounts.passed}** passed, **${phaseCounts.warning}** warnings, **${phaseCounts.failed}** failed\n`,
       ];
 
+      if (policySummary) {
+        const policyCounts = countBySeverity(policySummary.evaluations, policyEvaluationSeverity);
+        lines.push(
+          `Policy evaluation report: **${policyCounts.passed}** passed, **${policyCounts.warning}** warnings, **${policyCounts.failed}** failed`,
+        );
+        if (policySummary.reportStatus) lines.push(`Report status: ${policySummary.reportStatus}`);
+        if (policySummary.planId) lines.push(`Validation plan: \`${policySummary.planId}\``);
+        lines.push("");
+
+        for (const evaluation of policySummary.evaluations) {
+          const severity = policyEvaluationSeverity(evaluation);
+          const policyId = evaluation.governanceEntityId ?? "unknown-policy";
+          const status = evaluation.governanceEntityStatus ?? "—";
+          const outcome = evaluation.outcome ?? "—";
+          const satisfiesPolicy = evaluation.result?.satisfiesPolicy;
+
+          lines.push(`- ${severityIcon(severity)} Policy \`${policyId}\`: ${outcome}`);
+          lines.push(`  Status: ${status}`);
+          if (satisfiesPolicy !== undefined) lines.push(`  Satisfies policy: ${satisfiesPolicy}`);
+
+          for (const error of evaluation.result?.errors ?? []) {
+            lines.push(`  - ${firstErrorLine(error)}`);
+            for (const location of descriptorLocations(error)) {
+              lines.push(`    Descriptor location: ${location}`);
+            }
+          }
+        }
+
+        lines.push("", "Validation phases:");
+      } else {
+        lines.push(
+          "Policy evaluation report was not available from the latest VALIDATION provisioning plan; showing validation phases only.",
+          "",
+        );
+      }
+
       for (const r of results) {
-        const icon = isSuccess(r) ? "✅" : "❌";
+        const phaseSeverity = validationPhaseSeverity(r, policySummary);
+        const icon = severityIcon(phaseSeverity);
         lines.push(`- ${icon} **${r.validationPhaseKind}**: ${r.status}`);
 
         const errs = r.errors?.errors ?? [];
@@ -279,7 +492,10 @@ const testingTools: ToolDefinition[] = [
           for (const e of errs) {
             if (typeof e === "string") {
               // CUE policy errors come as plain strings
-              lines.push(`  - ${e.split("\n")[0]}`);
+              lines.push(`  - ${firstErrorLine(e)}`);
+              for (const location of descriptorLocations(e)) {
+                lines.push(`    Descriptor location: ${location}`);
+              }
             } else {
               const msg = e.userMessage || e.message || e.code || "Unknown error";
               lines.push(`  - ${msg}`);

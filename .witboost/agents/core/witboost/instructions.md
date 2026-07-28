@@ -23,16 +23,18 @@ from and what columns/types they expose.
 
 1. `list_blueprints` → user picks → `get_blueprint` for creation order
 2. `list_templates` → find exact template IDs (NEVER guess)
+2b. `list_domains` → find the exact domain ref for the target domain (NEVER guess)
 3. `get_template_schema` for each template → understand required parameters; `get_template_parameters` for default values
-4. `create_data_product` with all governance-required fields (see below)
-5. `add_component` for each component in dependency order: storage → workload → output ports
-6. `list_repositories` → get exact repo URLs → `clone_repository` (NEVER guess URLs)
-7. Fill governance metadata immediately — don't leave fields null for later
+4. **Show confirmation table** — before calling `create_data_product` or `add_component`, display a Markdown table of all parameter values. Mark inferred values with _(inferred)_ and auto-resolved values with _(auto)_. Then **explicitly ask the user for confirmation** and wait for an affirmative answer. **Do NOT call `create_data_product` or `add_component` until the user confirms.**
+5. `create_data_product` with all governance-required fields (see **Governance-Required Fields** section below)
+6. `add_component` for each component in dependency order: storage → workload → output ports
+7. `list_repositories` → get exact repo URLs (HTTPS + SSH) → `git clone` with the SSH URL (NEVER guess URLs)
+8. Fill governance metadata immediately — don't leave fields null for later
 
 ### Phase 2 — Implement Business Logic
 
 1. `get_data_product` + `list_components` → understand structure
-2. `clone_repository` to get the component code; read `catalog-info.yaml` for component type, `connectionType`, `dependsOn`
+2. `git clone` the SSH URL from `list_repositories` to get the component code; read `catalog-info.yaml` for component type, `connectionType`, `dependsOn`
 3. Read existing code, detect tech stack (dbt, Spark, Python, SQL, Airflow), conventions, existing tests and CI config
 4. Read upstream component schemas when `dependsOn` references exist
 5. Implement business logic following project patterns
@@ -48,7 +50,7 @@ from and what columns/types they expose.
 5. Use `check_policies` to verify governance compliance on specific components
 6. **Loop until all phases COMPLETED with zero errors — never stop early**
 7. On `COR_PARSE_DESCR_1` (parse error): diff against a working DP to find the problem
-8. **Fixing component errors** (empty schema, wrong endpoint, missing fields): get the repo URL from `list_repositories`, clone it, edit `catalog-info.yaml` (or `parameters.yaml` for skeleton repos), push. The preview API with `bypassCache=true` will pick up the changes from Git immediately. **Never create new repos** — the scaffolder already created them.
+8. **Fixing component errors** (empty schema, wrong endpoint, missing fields): get the repo URL from `list_repositories`, `git clone` it, edit `catalog-info.yaml` (or `parameters.yaml` for skeleton repos), push. Rebuild the descriptor after the push to pick up the latest Git changes. **Never create new repos** — the scaffolder already created them.
 
 ### Phase 3b — Test
 
@@ -81,6 +83,7 @@ Do NOT rely on hardcoded field lists — governance policies evolve over time.
 2. **Infer values from context** — use DP description, domain, upstream data
 3. **Use sensible defaults** based on the specification's enum/type constraints (e.g., first enum value, today's date for date fields, `"Draft"` for lifecycle fields)
 4. **Never ask the user** for each field — fill with reasonable values, let validation confirm
+5. **Never copy field values from existing data products or components** — they may have been created with older template versions and can carry stale, incorrect, or non-compliant values. Always derive values from the descriptor specification and policies, not from catalog examples.
 
 ## Builder Catalog vs Marketplace
 
@@ -118,19 +121,21 @@ Component repos use one of two patterns — **always check before editing**:
 - **Phase 3 is non-negotiable** — validate against `production`, read failing policies via `get_policy`, fix ALL errors in one batch, push, re-validate. Repeat until zero errors.
 
 ### Creation
-- **MANDATORY sequence**: `get_blueprint` → `get_template_schema` for each template → `add_component`
+- **MANDATORY sequence**: `get_blueprint` → `get_template_schema` for each template → confirmation table → **explicit user approval** → `create_data_product` / `add_component`
+- **Always show a confirmation table** before calling `create_data_product` or `add_component`. The table must list every parameter with its value and origin: _(provided)_ for values given by the user, _(inferred)_ for values derived from workspace/catalog context, _(auto)_ for values the tool resolves automatically (e.g. owner from auth). Then **explicitly ask the user for confirmation** and wait for an affirmative answer. **Do NOT call `create_data_product` or `add_component` until the user confirms.**
+- **If parameters change between attempts** (e.g. after a SCAFFOLDER error, a missing-field fix, or discovering a corrected value): show an updated confirmation table with the changed values highlighted, ask again for confirmation, and wait for re-approval before retrying.
 - **Never call `add_component`** without first calling `get_template_schema` for that specific template
 - **Never guess** `dataProductOwner` — omit it, the tool auto-resolves
 - **Never guess** template names — always call `list_templates` or `get_blueprint` first
-- **Never guess** repo URLs — always call `list_repositories` first
+- **Never guess** repo URLs — always call `list_repositories` first (returns both HTTPS and SSH URLs)
 - **Always inspect** upstream output port schemas before designing a new DP
 - **On SCAFFOLDER_FAILED (repo not empty)**: use `list_components` to check if the component already exists — if so, just clone it instead of re-creating
 - **dependsOn format**: always use URN format (`urn:dmb:cmp:domain:dp:version:component`), never `component:default/...`
 
 ### Repositories
-- **Repo URLs come from catalog entities** — always use `list_repositories` to get the correct clone URL for each component. Never construct, guess, or create repo URLs manually.
+- **Repo URLs come from catalog entities** — always use `list_repositories` to get the correct HTTPS/SSH URL for each component. Never construct, guess, or create repo URLs manually. Prefer the SSH URL for `git clone` (developers authenticate via SSH keys); fall back to HTTPS only if SSH is unavailable.
 - **Never create repos via push-to-create** — the scaffolder creates them. If the scaffolder reports success, the repo exists. Clone it, edit it, push to it.
-- **When fixing validation errors on components** — clone the component's repo (from `list_repositories`), edit `catalog-info.yaml` directly (or `parameters.yaml` for SKELETON repos), push. The `bypassCache=true` flag on `build_descriptor` ensures fresh data is read from Git.
+- **When fixing validation errors on components** — clone the component's repo (URL from `list_repositories`), edit `catalog-info.yaml` directly (or `parameters.yaml` for SKELETON repos), push, then rebuild the descriptor before validating again.
 
 ### Implementation
 - **Read before writing** — always understand existing patterns first

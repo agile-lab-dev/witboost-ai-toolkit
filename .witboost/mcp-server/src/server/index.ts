@@ -6,6 +6,7 @@ import { ssoLogin, loadCachedToken } from "../auth/login.js";
 // Import tool registration modules (side-effect: registers tools)
 import "../tools/blueprints.js";
 import "../tools/data-products.js";
+import "../tools/domains.js";
 import "../tools/components.js";
 import "../tools/repositories.js";
 import "../tools/provisioning.js";

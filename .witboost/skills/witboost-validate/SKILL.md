@@ -17,15 +17,16 @@ tools:
 
 ## Validation Workflow
 
-### API Endpoints
+### Tool Contracts
 
-1. **Preview**: `POST /api/builder/dataproducts/preview?dataProduct={dotNotation}&projectKind=System&environment={env}&version={ver}&bypassCache=true&hideComponents=false`
-   - Uses **dot-notation ID** (e.g. `finance.fraud-signal-analytics.0`), NOT URN
-   - Returns `{ descriptor: "yaml string" }`
+1. `build_descriptor`
+   - Input: data product ID in **dot-notation** (e.g. `finance.fraud-signal-analytics.0`), target environment, optional version
+   - Output: rendered descriptor YAML
 
-2. **Validate**: `POST /api/builder/dataproducts/{dotNotation}/validate`
-   - Body: `{ descriptor, version, environment, projectKind: "System" }`
-   - Returns `{ body: { results: [...] } }`
+2. `validate_descriptor`
+   - API mode: builds the descriptor from the platform and runs the full validation pipeline
+   - Local mode: validates a local YAML descriptor for basic structural issues
+   - Output: validation results grouped by phase
 
 ### Environment Selection
 

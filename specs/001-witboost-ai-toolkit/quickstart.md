@@ -65,7 +65,7 @@ node .witboost/setup.js --dry-run
 ```
 
 This generates:
-- **Copilot**: `.github/agents/*.agent.md`, `.github/prompts/*.prompt.md`, `.vscode/mcp.json`
+- **Copilot**: `.github/agents/*.agent.md`, `.github/instructions/*.instructions.md`, `.vscode/mcp.json`
 - **Claude**: `CLAUDE.md`, `.claude/` config files
 - **Codex**: `AGENTS.md`
 
@@ -133,7 +133,7 @@ npm run build
 To remove the toolkit completely:
 
 ```bash
-rm -rf .witboost/ .github/agents/ .github/prompts/ .claude/ .vscode/mcp.json CLAUDE.md AGENTS.md
+rm -rf .witboost/ .github/agents/ .github/instructions/ .claude/ .vscode/mcp.json CLAUDE.md AGENTS.md
 ```
 
 No other files in your repository are affected.

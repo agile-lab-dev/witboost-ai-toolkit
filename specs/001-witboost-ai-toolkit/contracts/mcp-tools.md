@@ -270,31 +270,9 @@ List Git repositories associated with a data product.
 }
 ```
 
-**Output**: Text content listing repository URLs and their associated components.
+**Output**: Text content listing, for each repository, its HTTPS and SSH clone URLs and associated component.
 
 **Errors**: `NOT_FOUND` (404), `UNAUTHORIZED` (401)
-
----
-
-### `clone_repository`
-
-Clone a data product repository to the local workspace.
-
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "repositoryUrl": { "type": "string", "description": "Git repository URL" },
-    "targetPath": { "type": "string", "description": "Local path to clone to (optional, defaults to current directory)" }
-  },
-  "required": ["repositoryUrl"]
-}
-```
-
-**Output**: Text content confirming clone location and branch.
-
-**Errors**: `GIT_ERROR` (clone failed), `PATH_EXISTS` (target directory already exists)
 
 ---
 

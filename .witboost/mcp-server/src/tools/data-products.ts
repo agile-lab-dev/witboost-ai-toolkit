@@ -88,6 +88,7 @@ const dataProductTools: ToolDefinition[] = [
     name: "create_data_product",
     description:
       "Create a new data product from a template. " +
+      "Use list_domains first to get the exact domain reference instead of guessing it. " +
       "Entity references must NOT include 'default/' namespace (use 'domain:finance', not 'domain:default/finance'). " +
       "For dataproduct-template: identifier must be 'domain.name.version' format (e.g. 'finance.spend-analytics.0'), " +
       "field is 'devGroup' (not developmentGroup), maturity must be 'Proposed', email is REQUIRED. " +
@@ -229,14 +230,23 @@ const dataProductTools: ToolDefinition[] = [
 
       const slug = dpRes.data.metadata?.annotations?.["gitlab.com/project-slug"];
       const srcLoc = dpRes.data.metadata?.annotations?.["backstage.io/source-location"] ?? "";
-      let cloneUrl: string | undefined;
+      let httpUrl: string | undefined;
+      let sshUrl: string | undefined;
 
       if (slug && !slug.includes("undefined") && !slug.includes("${{")) {
-        cloneUrl = `https://gitlab.com/${slug}.git`;
+        httpUrl = `https://gitlab.com/${slug}.git`;
+        sshUrl = `git@gitlab.com:${slug}.git`;
       } else {
         const match = srcLoc.replace(/^url:/, "").match(/https:\/\/gitlab\.com\/([^/]+(?:\/[^/]+)*?)(?:\/-\/|$)/);
-        if (match) cloneUrl = `https://gitlab.com/${match[1]}.git`;
+        if (match) {
+          httpUrl = `https://gitlab.com/${match[1]}.git`;
+          sshUrl = `git@gitlab.com:${match[1]}.git`;
+        }
       }
+
+      const cloneInfo = httpUrl
+        ? `HTTPS: ${httpUrl} | SSH: ${sshUrl}`
+        : "Use `list_repositories` to find the URL";
 
       const updates = params.updates as Record<string, unknown> | undefined;
       const fieldsInfo = updates ? `\nFields to update: ${Object.keys(updates).join(", ")}` : "";
@@ -244,7 +254,7 @@ const dataProductTools: ToolDefinition[] = [
       return text(
         `**Data product \`${id}\` is Git-managed and cannot be updated via API.**\n\n` +
         `To update it:\n` +
-        `1. Clone the repo: ${cloneUrl ?? "Use \\`list_repositories\\` to find the URL"}\n` +
+        `1. Clone the repo: ${cloneInfo}\n` +
         `2. Check if \`catalog-info.yaml\` starts with \`%SKELETON\`\n` +
         `3. If skeleton → edit \`parameters.yaml\` (add fields under \`parameters:\` AND \`values:\`)\n` +
         `4. If plain YAML → edit \`catalog-info.yaml\` directly\n` +
@@ -254,26 +264,73 @@ const dataProductTools: ToolDefinition[] = [
   },
   {
     name: "delete_data_product",
-    description: "Delete a data product. Requires confirmation via confirm parameter.",
+    description:
+      "Unregister a data product from the Witboost catalog. " +
+      "For GitLab-managed entities this removes the catalog location so the entity " +
+      "is dropped on the next sync cycle. Requires confirmation via confirm parameter.",
     category: "data-products",
     inputSchema: {
       type: "object",
       properties: {
         dataProductId: { type: "string", description: "Data product identifier" },
-        confirm: { type: "boolean", description: "Must be true to confirm deletion" },
+        confirm: { type: "boolean", description: "Must be true to confirm unregistration" },
       },
       required: ["dataProductId", "confirm"],
     },
     async handler(params, ctx) {
       if (params.confirm !== true) {
-        return text("[CONFIRMATION_REQUIRED] Set confirm: true to delete this data product.", true);
+        return text("[CONFIRMATION_REQUIRED] Set confirm: true to unregister this data product.", true);
       }
 
       const id = params.dataProductId as string;
-      const res = await ctx.api.delete<any>(`/api/catalog/entities/by-name/system/default/${id}`);
-      if (!res.ok) return apiError(res.error!.code, res.error!.message);
 
-      return text(`Data product **${id}** has been deleted.`);
+      // Step 1: fetch the entity to read its origin location annotation.
+      const entityRes = await ctx.api.get<any>(`/api/catalog/entities/by-name/system/default/${id}`);
+      if (!entityRes.ok) return text(`[STEP1_ENTITY_FETCH_FAILED] code=${entityRes.error?.code} status=${entityRes.status} msg=${entityRes.error?.message}`, true);
+
+      const entity = entityRes.data;
+      const annotations: Record<string, string> = entity?.metadata?.annotations ?? {};
+
+      // Backstage sets 'backstage.io/managed-by-origin-location' to the canonical
+      // location URL (e.g. "url:https://gitlab.com/.../catalog-info.yaml").
+      // Strip the leading "<type>:" prefix to get the raw URL.
+      const originRef: string =
+        annotations["backstage.io/managed-by-origin-location"] ??
+        annotations["backstage.io/managed-by-location"] ??
+        "";
+      const originUrl = originRef.replace(/^[^:]+:/, "");
+
+      // Step 2: list all catalog locations and find the one pointing to this entity.
+      const locsRes = await ctx.api.get<any[]>("/api/catalog/locations");
+      if (!locsRes.ok) return text(`[STEP2_LOCATIONS_FETCH_FAILED] code=${locsRes.error?.code} status=${locsRes.status} msg=${locsRes.error?.message} originRef=${originRef}`, true);
+
+      const locations: any[] = locsRes.data ?? [];
+      const location = locations.find(
+        (l: any) =>
+          (originUrl && l.data?.target === originUrl) ||
+          (l.data?.target as string | undefined)?.includes(`/${id}/`) ||
+          (l.data?.target as string | undefined)?.endsWith(`/${id}`),
+      );
+
+      if (!location) {
+        // Fallback: entity has no external location — try direct UID delete.
+        const uid = entity?.metadata?.uid;
+        if (!uid) return text(`[NO_LOCATION] Could not find catalog location for '${id}' among ${locations.length} locations. originRef=${originRef}. Unregister manually from the Witboost UI.`, true);
+        const delRes = await ctx.api.delete<any>(`/api/catalog/entities/by-uid/${uid}`);
+        if (!delRes.ok) return text(`[STEP3_UID_DELETE_FAILED] uid=${uid} code=${delRes.error?.code} status=${delRes.status} msg=${delRes.error?.message}`, true);
+        return text(`Data product **${id}** has been deleted.`);
+      }
+
+      // Step 3: delete the location — Backstage will drop the entity on next sync.
+      const locId: string = location.data?.id;
+      const deleteRes = await ctx.api.delete<any>(`/api/catalog/locations/${locId}`);
+      if (!deleteRes.ok) return text(`[STEP3_LOC_DELETE_FAILED] locId=${locId} code=${deleteRes.error?.code} status=${deleteRes.status} msg=${deleteRes.error?.message}`, true);
+
+      return text(
+        `Data product **${id}** has been unregistered. ` +
+        `The catalog entry will be removed on the next sync cycle.\n` +
+        `Location removed: ${location.data?.target ?? locId}`,
+      );
     },
   },
 ];

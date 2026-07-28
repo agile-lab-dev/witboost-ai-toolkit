@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, chmodSync, mkdirSync, existsSync, readdirSync } from "node:fs";
 import { resolve, dirname, join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { loadConfig } from "../config/loader.js";
@@ -270,6 +270,9 @@ export async function main(): Promise<void> {
 
       mkdirSync(dirname(fullPath), { recursive: true });
       writeFileSync(fullPath, file.content, "utf-8");
+      if (file.path.endsWith(".sh")) {
+        chmodSync(fullPath, 0o755);
+      }
       console.log(`  [write] ${file.path}`);
       totalFiles++;
     }

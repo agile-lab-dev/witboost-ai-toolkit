@@ -15,6 +15,8 @@ export class WitboostApiClient {
   private jwt: string | undefined;
   /** When the cached JWT expires (epoch ms) */
   private jwtExpiresAt = 0;
+  /** Cached JWTs keyed by requested scope */
+  private readonly scopedJwts = new Map<string, { jwt: string; expiresAt: number }>();
 
   constructor(config: WitboostConfig) {
     this.baseUrl = config.baseUrl;
@@ -39,40 +41,41 @@ export class WitboostApiClient {
       return this.jwt;
     }
 
-    // Exchange PAT for JWT
-    const url = `${this.baseUrl}/api/auth/access-tokens/jwt`;
-    const body = JSON.stringify({
-      access_token: this.accessToken,
-      duration_seconds: JWT_DURATION_SECONDS,
-    });
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
     try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body,
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`JWT exchange failed (HTTP ${response.status}): ${text}`);
-      }
-
-      const data = (await response.json()) as { jwt: string };
-      this.jwt = data.jwt;
+      this.jwt = await this.exchangeAccessTokenForJwt();
       this.jwtExpiresAt = Date.now() + JWT_DURATION_SECONDS * 1000;
       return this.jwt;
     } catch (err) {
-      clearTimeout(timeoutId);
       throw new Error(
         `Failed to exchange PAT for JWT: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+  }
+
+  /**
+   * Returns a valid Bearer token containing the requested scope claim.
+   * PAT tokens are exchanged through /access-tokens/jwt; existing JWT/SSO
+   * tokens are exchanged through /session-tokens/jwt using the token itself.
+   */
+  async getScopedBearerToken(scope: string): Promise<string> {
+    if (this.tokenHasScope(this.accessToken, scope)) {
+      return this.accessToken;
+    }
+
+    const cached = this.scopedJwts.get(scope);
+    if (cached && Date.now() < cached.expiresAt - JWT_REFRESH_MARGIN_MS) {
+      return cached.jwt;
+    }
+
+    const scopedJwt = this.accessToken.startsWith("wbat-")
+      ? await this.exchangeAccessTokenForJwt(scope)
+      : await this.exchangeSessionTokenForJwt(scope);
+
+    this.scopedJwts.set(scope, {
+      jwt: scopedJwt,
+      expiresAt: this.jwtExpiresAtFromToken(scopedJwt) ?? Date.now() + JWT_DURATION_SECONDS * 1000,
+    });
+    return scopedJwt;
   }
 
   async get<T>(path: string, query?: Record<string, string | number | undefined>): Promise<ApiResponse<T>> {
@@ -112,6 +115,69 @@ export class WitboostApiClient {
     return this.request<T>(url, { method: "DELETE" });
   }
 
+  private async exchangeAccessTokenForJwt(scope?: string): Promise<string> {
+    const url = `${this.baseUrl}/api/auth/access-tokens/jwt`;
+    const body = JSON.stringify({
+      access_token: this.accessToken,
+      duration_seconds: JWT_DURATION_SECONDS,
+      ...(scope ? { scope } : {}),
+    });
+
+    return this.exchangeJwt(url, { "Content-Type": "application/json" }, body, "JWT exchange");
+  }
+
+  private async exchangeSessionTokenForJwt(scope: string): Promise<string> {
+    const url = `${this.baseUrl}/api/auth/session-tokens/jwt`;
+    const body = JSON.stringify({
+      duration_seconds: JWT_DURATION_SECONDS,
+      scope,
+    });
+
+    return this.exchangeJwt(
+      url,
+      {
+        Authorization: `Bearer ${this.accessToken}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body,
+      "Scoped JWT exchange",
+    );
+  }
+
+  private async exchangeJwt(
+    url: string,
+    headers: Record<string, string>,
+    body: string,
+    operation: string,
+  ): Promise<string> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers,
+        body,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`${operation} failed (HTTP ${response.status}): ${errorText}`);
+      }
+
+      const data = (await response.json()) as { jwt: string };
+      return data.jwt;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      throw new Error(
+        `Failed to exchange token for JWT: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
   private buildUrl(path: string, query?: Record<string, string | number | undefined>): string {
     const url = new URL(path, this.baseUrl);
     if (query) {
@@ -122,6 +188,36 @@ export class WitboostApiClient {
       }
     }
     return url.toString();
+  }
+
+  private tokenHasScope(token: string, scope: string): boolean {
+    const payload = this.decodeJwtPayload(token);
+    if (!payload) return false;
+
+    const scopeClaim = typeof payload.scope === "string" ? payload.scope : "";
+    const scopes = scopeClaim.split(/\s+/).filter(Boolean);
+    const expiresAt = this.jwtExpiresAtFromPayload(payload);
+
+    return scopes.includes(scope) && (!expiresAt || Date.now() < expiresAt - JWT_REFRESH_MARGIN_MS);
+  }
+
+  private jwtExpiresAtFromToken(token: string): number | undefined {
+    const payload = this.decodeJwtPayload(token);
+    return payload ? this.jwtExpiresAtFromPayload(payload) : undefined;
+  }
+
+  private jwtExpiresAtFromPayload(payload: Record<string, unknown>): number | undefined {
+    return typeof payload.exp === "number" ? payload.exp * 1000 : undefined;
+  }
+
+  private decodeJwtPayload(token: string): Record<string, unknown> | undefined {
+    try {
+      const [, payload] = token.split(".");
+      if (!payload) return undefined;
+      return JSON.parse(Buffer.from(payload, "base64url").toString("utf-8")) as Record<string, unknown>;
+    } catch {
+      return undefined;
+    }
   }
 
   private async request<T>(

@@ -27,7 +27,7 @@ Thumbs.db
 
 # Generated harness files (output of setup.cjs, belong in target repos)
 .github/agents/
-.github/prompts/
+.github/instructions/
 .vscode/mcp.json
 CLAUDE.md
 .claude/

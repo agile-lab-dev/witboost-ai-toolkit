@@ -9,7 +9,7 @@ AI toolkit that turns Witboost platform APIs into an MCP server with 33 tools, p
 The toolkit has two parts:
 
 1. **MCP Server** — a single Node.js process that exposes 33 tools across 9 categories, callable by any MCP-compatible AI client (GitHub Copilot, Claude Code, Codex, etc.)
-2. **Agent definitions** — canonical YAML+Markdown descriptions of workflows, skills, and rules that get translated into harness-specific files (`.agent.md`, `CLAUDE.md`, `AGENTS.md`, etc.)
+2. **Agent definitions** — canonical YAML+Markdown descriptions of workflows, skills, and rules that get translated into harness-specific files (`.agent.md`, `.instructions.md`, `CLAUDE.md`, `AGENTS.md`, etc.)
 
 When you run `node .witboost/mcp-server/setup.cjs --harness copilot`, the toolkit generates the files your IDE needs to connect to the MCP server and load the agent instructions. The AI can then autonomously create data products, implement business logic, validate against governance policies, and deploy — all through tool calls.
 
@@ -21,19 +21,19 @@ git clone https://github.com/agile-lab-dev/witboost-ai-toolkit.git
 cd witboost-ai-toolkit
 npm install
 
-# 2. Configure
-cp .env.example .env
+# 2. Build
+npm run build
+
+# 3. Copy .witboost/ into your data product repo
+cp -r .witboost/ /path/to/your-repo/.witboost/
+cp .env.example /path/to/your-repo/.env
+
+# 4. Configure
+cd /path/to/your-repo
 # Edit .env — set WITBOOST_BASE_URL and either:
 #   WITBOOST_TOKEN (PAT) or WITBOOST_AUTH_METHOD=sso
 
-# 3. Build
-npm run build
-
-# 4. Copy .witboost/ into your data product repo
-cp -r .witboost/ /path/to/your-repo/.witboost/
-
 # 5. Generate IDE harness files
-cd /path/to/your-repo
 node .witboost/mcp-server/setup.cjs --harness copilot
 ```
 
@@ -46,10 +46,10 @@ node .witboost/mcp-server/setup.cjs --harness copilot
 | **Blueprints** | `list_blueprints`, `get_blueprint`, `list_templates`, `get_template_schema`, `get_template_parameters`, `validate_against_template` | Browse and inspect blueprints and scaffolder templates |
 | **Data Products** | `list_data_products`, `get_data_product`, `create_data_product`, `update_data_product`, `delete_data_product` | CRUD operations on data products |
 | **Components** | `list_components`, `add_component`, `remove_component` | Manage storage, workloads, and output ports |
-| **Repositories** | `list_repositories`, `clone_repository` | Access component Git repos |
+| **Repositories** | `list_repositories` | Access component Git repos (returns HTTPS + SSH URLs) |
 | **Validation** | `build_descriptor`, `validate_descriptor`, `run_tests`, `get_test_results` | Build descriptors, validate against policies, run provisioner tests |
 | **Provisioning** | `deploy`, `undeploy`, `get_deployment_status`, `get_deployment_logs` | Deploy and monitor data products |
-| **Governance** | `list_policies`, `get_policy`, `check_policies`, `get_approval_status`, `get_descriptor_specification` | Inspect policies, check compliance, retrieve the descriptor CUE schema |
+| **Governance** | `list_policies`, `get_policy`, `check_policies`, `get_approval_status`, `get_descriptor_specification` | Inspect policies, check compliance, retrieve the descriptor CUE schema. ⚠️ Requires WCG to be reachable/exposed (set `WITBOOST_WCG_URL` when needed) |
 | **Marketplace** | `marketplace_search`, `marketplace_get_data_product`, `marketplace_get_output_ports`, `marketplace_get_output_port` | Discover published data products and their schemas |
 | **Scaffolder** | (internal) | Template execution via the Witboost scaffolder API |
 
@@ -71,7 +71,7 @@ The setup script translates canonical agent definitions into harness-specific fi
 
 | Harness | Generated files |
 |---------|----------------|
-| **GitHub Copilot** | `.github/agents/*.agent.md` + `.vscode/mcp.json` |
+| **GitHub Copilot** | `.github/agents/*.agent.md` + `.github/instructions/*.instructions.md` + `.vscode/mcp.json` |
 | **Claude Code** | `CLAUDE.md` + `.claude/settings.json` |
 | **Gemini Code Assist** | `GEMINI.md` + `.gemini/settings.json` |
 | **OpenAI Codex** | `AGENTS.md` |
@@ -86,13 +86,14 @@ node .witboost/mcp-server/setup.cjs --force              # overwrite existing fi
 
 ### Environment variables (`.env`)
 
+Place `.env` in the root of your **data product repo** (next to the `.witboost/` folder).
+
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `WITBOOST_BASE_URL` | Yes | Witboost platform URL |
 | `WITBOOST_AUTH_METHOD` | No | `pat` (default) or `sso` — see below |
 | `WITBOOST_TOKEN` | Yes (if `pat`) | Personal Access Token |
-| `WITBOOST_HASURA_URL` | No | Explicit Hasura GraphQL endpoint (see below) |
-| `WITBOOST_HASURA_JWT` | No | JWT with Hasura claims for direct GraphQL access |
+| `WITBOOST_WCG_URL` | No | Explicit Witboost Computational Governance URL (default: derived from base URL replacing `ui.` with `wcg.`) |
 | `WITBOOST_API_VERSION` | No | API version (default: `v1`) |
 | `WITBOOST_API_TIMEOUT` | No | Request timeout in ms (default: `30000`) |
 | `WITBOOST_DEFAULT_DOMAIN` | No | Default domain for new data products |
@@ -108,15 +109,6 @@ The toolkit supports two authentication methods, controlled by `WITBOOST_AUTH_ME
 | **`sso`** | Set `WITBOOST_AUTH_METHOD=sso` (no `WITBOOST_TOKEN` needed) | Opens a browser for SSO login on first run, then caches and auto-refreshes the JWT |
 
 In SSO mode, the token is saved to `.witboost/token.json` and reused across restarts. When it expires, the toolkit tries a silent refresh first; if that fails, it opens the browser again.
-
-### Hasura URL resolution
-
-The governance and marketplace tools need direct access to the Hasura GraphQL API. The URL is resolved in this order:
-
-1. **`WITBOOST_HASURA_URL`** — explicit URL, if set
-2. **Convention** — derived from `WITBOOST_BASE_URL` by replacing the `ui.` host prefix with `hasura.` (e.g., `https://ui.example.witboost.com` → `https://hasura.example.witboost.com/v1/graphql`)
-
-If your Witboost instance uses a different URL scheme, set `WITBOOST_HASURA_URL` explicitly.
 
 ### Project config
 
@@ -153,11 +145,6 @@ npm run check      # TypeScript type check
 npm run lint       # Biome lint
 npm run format     # Biome format
 ```
-
-## Known Limitations
-
-- **Git provider**: repository URL construction currently assumes GitLab. Platforms using GitHub or Bitbucket as the backing Git provider may need adjustments to `repositories.ts` and `components.ts`.
-- **Hasura URL convention**: if `WITBOOST_HASURA_URL` is not set, the toolkit derives it from the base URL assuming the `ui.` → `hasura.` subdomain convention. Set the env var explicitly if your deployment differs.
 
 ## Contributing
 

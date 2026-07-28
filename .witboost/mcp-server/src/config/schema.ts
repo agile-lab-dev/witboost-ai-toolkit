@@ -2,10 +2,9 @@
 export interface WitboostConfig {
   baseUrl: string;
   token: string;
-  /** Optional JWT with Hasura claims — used for direct Hasura GraphQL calls */
-  hasuraJwt?: string;
-  /** Explicit Hasura GraphQL endpoint. If not set, derived from baseUrl (ui.X → hasura.X). */
-  hasuraUrl?: string;
+  /** Explicit Witboost Computational Governance (WCG) base URL.
+   *  If not set, derived from baseUrl (ui.X → wcg.X/governance-platform). */
+  wcgUrl?: string;
   defaultDomain: string;
   defaultEnvironment: string;
   apiVersion: string;
@@ -60,8 +59,7 @@ export function validateBaseUrl(url: string): string {
 export function buildConfig(raw: {
   baseUrl?: string;
   token?: string;
-  hasuraJwt?: string;
-  hasuraUrl?: string;
+  wcgUrl?: string;
   defaultDomain?: string;
   defaultEnvironment?: string;
   apiVersion?: string;
@@ -93,8 +91,7 @@ export function buildConfig(raw: {
   return {
     baseUrl,
     token: raw.token,
-    hasuraJwt: raw.hasuraJwt || undefined,
-    hasuraUrl: raw.hasuraUrl || undefined,
+    wcgUrl: raw.wcgUrl || undefined,
     defaultDomain: raw.defaultDomain ?? CONFIG_DEFAULTS.defaultDomain,
     defaultEnvironment: raw.defaultEnvironment ?? CONFIG_DEFAULTS.defaultEnvironment,
     apiVersion,

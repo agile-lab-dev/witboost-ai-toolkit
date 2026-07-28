@@ -184,7 +184,7 @@ The Test & Deploy agent is defined declaratively. Its functionality is validated
 
 ### Harness Generators
 
-- [ ] T054 [P] [US5] Implement Copilot generator in `src/generators/copilot.ts` — implements `HarnessGenerator` interface, reads `AgentDefinition[]`, produces `.github/agents/<name>.agent.md` + `.github/prompts/<name>.prompt.md` + `.vscode/mcp.json` with resolved template variables
+- [ ] T054 [P] [US5] Implement Copilot generator in `src/generators/copilot.ts` — implements `HarnessGenerator` interface, reads `AgentDefinition[]`, produces `.github/agents/<name>.agent.md` + `.github/instructions/<name>-lifecycle.instructions.md` + `.vscode/mcp.json` with resolved template variables
 - [ ] T055 [P] [US5] Implement Claude generator in `src/generators/claude.ts` — implements `HarnessGenerator` interface, produces `CLAUDE.md` (all agents as sections) + `.claude/` config files with MCP server configuration
 - [ ] T056 [P] [US5] Implement Codex generator in `src/generators/codex.ts` — implements `HarnessGenerator` interface, produces `AGENTS.md` (all agents as sections) with tool references and workflow steps
 - [ ] T057 [P] [US5] Implement Deep Agents generator in `src/generators/deepagents.ts` — implements `HarnessGenerator` interface, produces `.witboost/harness/deepagents/` Python modules: `__init__.py` (exports factory functions), one `<name>.py` per agent with `create_deep_agent()` wiring (MCP tools via `langchain-mcp-adapters`, system prompt from `instructions.md`, `SkillsMiddleware` with `.witboost/skills/`), `requirements.txt` (`deepagents`, `langchain-mcp-adapters`). Per agent-definition-schema.md and plan.md Deep Agents architecture.
@@ -197,7 +197,7 @@ The Test & Deploy agent is defined declaratively. Its functionality is validated
 
 ### Generator Tests
 
-- [ ] T061 [P] [US5] Write snapshot tests for Copilot generator in `tests/unit/generators/copilot.test.ts` — verify generated `.agent.md` and `.prompt.md` content matches expected format
+- [ ] T061 [P] [US5] Write snapshot tests for Copilot generator in `tests/unit/generators/copilot.test.ts` — verify generated `.agent.md` and `.instructions.md` content matches expected format
 - [ ] T062 [P] [US5] Write snapshot tests for Claude generator in `tests/unit/generators/claude.test.ts` — verify generated `CLAUDE.md` content matches expected format
 - [ ] T063 [P] [US5] Write snapshot tests for Codex generator in `tests/unit/generators/codex.test.ts` — verify generated `AGENTS.md` content matches expected format
 - [ ] T064 [P] [US5] Write snapshot tests for Deep Agents generator in `tests/unit/generators/deepagents.test.ts` — verify generated Python modules (`__init__.py`, `create_dp.py`, `implement.py`, `deploy.py`, `requirements.txt`) match expected format, validate `create_deep_agent()` call structure, MCP tool loading, skills middleware wiring

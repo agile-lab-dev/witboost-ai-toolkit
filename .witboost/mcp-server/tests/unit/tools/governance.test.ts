@@ -2,9 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ToolContext } from "../../../src/tools/types.js";
 import type { WitboostConfig } from "../../../src/config/schema.js";
 import { WitboostApiClient } from "../../../src/api/client.js";
-import { getTool, clearRegistry } from "../../../src/tools/registry.js";
+import { getTool } from "../../../src/tools/registry.js";
 
-// Import governance tools so they register themselves
 import "../../../src/tools/governance.js";
 
 function makeConfig(overrides: Partial<WitboostConfig> = {}): WitboostConfig {
@@ -27,25 +26,35 @@ function makeContext(overrides: Partial<WitboostConfig> = {}): ToolContext {
   };
 }
 
-function mockGraphqlResponse(data: unknown) {
+function mockJsonResponse(data: unknown) {
   return {
     ok: true,
     status: 200,
     headers: new Headers({ "content-type": "application/json" }),
-    json: async () => ({ data }),
+    json: async () => data,
   };
 }
 
-function mockGraphqlError(errors: Array<{ message: string }>) {
-  return {
-    ok: true,
-    status: 200,
-    headers: new Headers({ "content-type": "application/json" }),
-    json: async () => ({ errors }),
-  };
-}
+const policy = {
+  id: "policy-001",
+  name: "Global specification compliance",
+  description: "Validates descriptor structure",
+  engine: "cue",
+  timing: "sync",
+  trigger: "active",
+  status: "enabled",
+  resourceType: "dataproduct",
+  environment: "production",
+  interactionType: "validator",
+  cueScript: '#DataProduct: {\n  name: string\n}',
+};
 
-describe("get_descriptor_specification", () => {
+const wcgListResponse = {
+  data: [policy],
+  meta: { pagination: { limit: 200, offset: 0, total: 1 } },
+};
+
+describe("governance tools", () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
@@ -56,203 +65,95 @@ describe("get_descriptor_specification", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("returns CUE schema when policy exists", async () => {
-    const cueScript = '#DataProduct: {\n  name: string\n  version: =~"^\\\\d+\\\\.\\\\d+\\\\.\\\\d+$"\n}';
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      mockGraphqlResponse({
-        cgp_governance_entity: [
-          {
-            governance_entity_id: "spec-001",
-            name: "Global specification compliance",
-            description: "Validates descriptor structure",
-            engine: "cue",
-            timing: "sync",
-            trigger: "active",
-            status: "active",
-            resource_type: { name: "dataproduct", display_name: "Data Product" },
-            content: { cueScript },
-            selector: null,
-            preprocessing: null,
-            interaction_type: null,
-            additional_metadata: null,
-            result_type: "policy",
-            governance_entity_environments: [],
-            governance_entity_tags: [],
-          },
-        ],
-      }),
-    );
+  it("uses a computational governance scoped token for WCG REST calls", async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(mockJsonResponse({ jwt: "scoped-wcg-jwt" }))
+      .mockResolvedValueOnce(mockJsonResponse(wcgListResponse));
 
-    const tool = getTool("get_descriptor_specification");
-    expect(tool).toBeDefined();
-
-    const ctx = makeContext({ hasuraJwt: "valid-hasura-jwt" });
-    const result = await tool!.handler({}, ctx);
+    const result = await getTool("list_policies")!.handler({}, makeContext());
 
     expect(result.isError).toBeFalsy();
-    const text = result.content[0];
-    expect(text.type).toBe("text");
-    expect((text as { type: "text"; text: string }).text).toContain("# Data Product Descriptor Specification");
-    expect((text as { type: "text"; text: string }).text).toContain("```cue");
-    expect((text as { type: "text"; text: string }).text).toContain(cueScript);
-  });
-
-  it("uses hasuraJwt when available", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      mockGraphqlResponse({
-        cgp_governance_entity: [
-          {
-            governance_entity_id: "spec-001",
-            name: "Global specification compliance",
-            content: { cueScript: "test: string" },
-            governance_entity_environments: [],
-            governance_entity_tags: [],
-          },
-        ],
-      }),
-    );
-
-    const ctx = makeContext({ hasuraJwt: "my-hasura-jwt-token" });
-    await getTool("get_descriptor_specification")!.handler({}, ctx);
-
-    const [url, opts] = vi.mocked(globalThis.fetch).mock.calls[0];
-    expect(url).toBe("https://hasura.test.witboost.com/v1/graphql");
-    expect((opts as RequestInit).headers).toEqual(
-      expect.objectContaining({
-        Authorization: "Bearer my-hasura-jwt-token",
-      }),
-    );
-  });
-
-  it("uses explicit hasuraUrl when configured", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      mockGraphqlResponse({
-        cgp_governance_entity: [
-          {
-            governance_entity_id: "spec-001",
-            name: "Global specification compliance",
-            content: { cueScript: "test: string" },
-            governance_entity_environments: [],
-            governance_entity_tags: [],
-          },
-        ],
-      }),
-    );
-
-    const ctx = makeContext({
-      hasuraJwt: "jwt",
-      hasuraUrl: "https://custom-hasura.example.com/v1/graphql",
-    });
-    await getTool("get_descriptor_specification")!.handler({}, ctx);
-
-    const [url] = vi.mocked(globalThis.fetch).mock.calls[0];
-    expect(url).toBe("https://custom-hasura.example.com/v1/graphql");
-  });
-
-  it("falls back to exchanged JWT when hasuraJwt is not set", async () => {
-    // First call: PAT→JWT exchange, second call: Hasura GraphQL
-    const jwtExchangeResponse = {
-      ok: true,
-      status: 200,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({ jwt: "exchanged-jwt" }),
-    };
-    globalThis.fetch = vi.fn()
-      .mockResolvedValueOnce(jwtExchangeResponse)
-      .mockResolvedValueOnce(
-        mockGraphqlResponse({
-          cgp_governance_entity: [
-            {
-              governance_entity_id: "spec-001",
-              name: "Global specification compliance",
-              content: { cueScript: "test: string" },
-              governance_entity_environments: [],
-              governance_entity_tags: [],
-            },
-          ],
-        }),
-      );
-
-    const ctx = makeContext({ token: "wbat-my-pat-token" });
-    await getTool("get_descriptor_specification")!.handler({}, ctx);
-
-    // First call should be JWT exchange
     expect(vi.mocked(globalThis.fetch).mock.calls[0][0]).toBe(
-      "https://ui.test.witboost.com/api/auth/access-tokens/jwt",
+      "https://ui.test.witboost.com/api/auth/session-tokens/jwt",
     );
-    // Second call should use exchanged JWT against Hasura
-    const [hasuraUrl, hasuraOpts] = vi.mocked(globalThis.fetch).mock.calls[1];
-    expect(hasuraUrl).toBe("https://hasura.test.witboost.com/v1/graphql");
-    expect((hasuraOpts as RequestInit).headers).toEqual(
+    expect(vi.mocked(globalThis.fetch).mock.calls[0][1]).toEqual(
       expect.objectContaining({
-        Authorization: "Bearer exchanged-jwt",
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-token",
+          "Content-Type": "application/json",
+        }),
+        body: JSON.stringify({
+          duration_seconds: 3600,
+          scope: "service:computational-governance",
+        }),
+      }),
+    );
+
+    const [wcgUrl, wcgOpts] = vi.mocked(globalThis.fetch).mock.calls[1];
+    expect(wcgUrl as string).toContain(
+      "https://wcg.test.witboost.com/governance-platform/v1/computational-governance/policies",
+    );
+    expect((wcgOpts as RequestInit).headers).toEqual(
+      expect.objectContaining({
+        Authorization: "Bearer scoped-wcg-jwt",
       }),
     );
   });
 
-  it("returns error when no policy found", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      mockGraphqlResponse({ cgp_governance_entity: [] }),
-    );
+  it("lists active policies returned by WCG", async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(mockJsonResponse({ jwt: "scoped-wcg-jwt" }))
+      .mockResolvedValueOnce(mockJsonResponse(wcgListResponse));
 
-    const ctx = makeContext({ hasuraJwt: "valid-jwt" });
-    const result = await getTool("get_descriptor_specification")!.handler({}, ctx);
+    const result = await getTool("list_policies")!.handler({}, makeContext());
 
-    expect(result.isError).toBe(true);
+    expect(result.isError).toBeFalsy();
     const text = (result.content[0] as { type: "text"; text: string }).text;
-    expect(text).toContain("No 'Global specification compliance' policy found");
+    expect(text).toContain("# All Active Policies (1)");
+    expect(text).toContain("Global specification compliance");
+    expect(text).toContain("```cue");
   });
 
-  it("returns error when policy has no CUE script", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      mockGraphqlResponse({
-        cgp_governance_entity: [
-          {
-            governance_entity_id: "spec-001",
-            name: "Global specification compliance",
-            content: {},
-            governance_entity_environments: [],
-            governance_entity_tags: [],
-          },
-        ],
-      }),
-    );
+  it("passes environment filters to WCG server-side", async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(mockJsonResponse({ jwt: "scoped-wcg-jwt" }))
+      .mockResolvedValueOnce(mockJsonResponse(wcgListResponse));
 
-    const ctx = makeContext({ hasuraJwt: "valid-jwt" });
-    const result = await getTool("get_descriptor_specification")!.handler({}, ctx);
+    const result = await getTool("list_policies")!.handler({ environment: "production" }, makeContext());
 
-    expect(result.isError).toBe(true);
-    const text = (result.content[0] as { type: "text"; text: string }).text;
-    expect(text).toContain("has no CUE script");
+    expect(result.isError).toBeFalsy();
+    const wcgUrl = vi.mocked(globalThis.fetch).mock.calls[1][0] as string;
+    expect(new URL(wcgUrl).searchParams.get("env")).toBe("production");
   });
 
-  it("returns error on Hasura GraphQL error", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      mockGraphqlError([{ message: "claims key: 'https://hasura.io/jwt/claims' not found" }]),
-    );
+  it("returns descriptor specification from the matching WCG policy", async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(mockJsonResponse({ jwt: "scoped-wcg-jwt" }))
+      .mockResolvedValueOnce(mockJsonResponse(wcgListResponse));
 
-    const ctx = makeContext({ hasuraJwt: "invalid-jwt" });
-    const result = await getTool("get_descriptor_specification")!.handler({}, ctx);
+    const result = await getTool("get_descriptor_specification")!.handler({}, makeContext());
 
-    expect(result.isError).toBe(true);
+    expect(result.isError).toBeFalsy();
     const text = (result.content[0] as { type: "text"; text: string }).text;
-    expect(text).toContain("HASURA_ERROR");
-    expect(text).toContain("claims key");
+    expect(text).toContain("# Data Product Descriptor Specification");
+    expect(text).toContain(policy.cueScript);
   });
 
-  it("returns error on HTTP failure", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 500,
-      text: async () => "Internal Server Error",
-    });
+  it("returns WCG error on HTTP failure", async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(mockJsonResponse({ jwt: "scoped-wcg-jwt" }))
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: async () => "The supplied authentication is invalid",
+      });
 
-    const ctx = makeContext({ hasuraJwt: "valid-jwt" });
-    const result = await getTool("get_descriptor_specification")!.handler({}, ctx);
+    const result = await getTool("list_policies")!.handler({}, makeContext());
 
     expect(result.isError).toBe(true);
     const text = (result.content[0] as { type: "text"; text: string }).text;
-    expect(text).toContain("HASURA_ERROR");
-    expect(text).toContain("500");
+    expect(text).toContain("WCG_ERROR");
+    expect(text).toContain("401");
   });
 });

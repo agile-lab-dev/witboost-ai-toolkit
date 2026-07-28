@@ -32,7 +32,6 @@ tools:
   - get_blueprint_parameters
   - create_data_product
   - list_repositories
-  - clone_repository
 
 # Agent categorization
 category: "lifecycle"        # lifecycle | utility | custom
@@ -111,7 +110,8 @@ The companion Markdown file contains the agent's instruction prompt. It uses `{{
    and collected parameters. Report the result to the user.
 
 5. **Clone repository**: Ask the user if they want to clone the generated
-   repository. If yes, call `clone_repository` with the repo URL.
+   repository. If yes, call `list_repositories` to get the HTTPS/SSH URL,
+   then run `git clone` with that URL.
 
 ## Error Handling
 
@@ -130,7 +130,7 @@ The companion Markdown file contains the agent's instruction prompt. It uses `{{
 Each agent produces two files:
 
 - `.github/agents/<name>.agent.md` — Agent definition with `@<name>` command
-- `.github/prompts/<name>.prompt.md` — Reusable prompt (optional)
+- `.github/instructions/<name>-lifecycle.instructions.md` — On-demand instructions for the default Copilot agent
 
 ### Claude Code
 

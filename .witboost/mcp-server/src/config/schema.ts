@@ -9,6 +9,9 @@ export interface WitboostConfig {
   defaultEnvironment: string;
   apiVersion: string;
   requestTimeout: number;
+  /** Bare hostname of the Git provider (e.g. "gitlab.com" or "gitlab.mycompany.com").
+   *  Resolved from GIT_BASE_URL env var, git.baseUrl in config.yml, or defaults to "gitlab.com". */
+  gitHost: string;
 }
 
 /** Raw shape of .witboost/config.yml */
@@ -17,6 +20,9 @@ export interface RawConfigFile {
     baseUrl?: string;
     version?: string;
     timeout?: number;
+  };
+  git?: {
+    baseUrl?: string;
   };
   defaults?: {
     domain?: string;
@@ -36,6 +42,7 @@ export const CONFIG_DEFAULTS: Omit<WitboostConfig, "baseUrl" | "token"> = {
   defaultEnvironment: "",
   apiVersion: "v1",
   requestTimeout: 30_000,
+  gitHost: "gitlab.com",
 };
 
 /** Validate a base URL */
@@ -64,6 +71,7 @@ export function buildConfig(raw: {
   defaultEnvironment?: string;
   apiVersion?: string;
   requestTimeout?: number;
+  gitHost?: string;
 }): WitboostConfig {
   if (!raw.baseUrl) {
     throw new Error(
@@ -96,5 +104,6 @@ export function buildConfig(raw: {
     defaultEnvironment: raw.defaultEnvironment ?? CONFIG_DEFAULTS.defaultEnvironment,
     apiVersion,
     requestTimeout,
+    gitHost: raw.gitHost ?? CONFIG_DEFAULTS.gitHost,
   };
 }

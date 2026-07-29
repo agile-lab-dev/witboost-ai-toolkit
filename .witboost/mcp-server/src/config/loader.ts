@@ -4,6 +4,21 @@ import { parse as parseYaml } from "yaml";
 import { buildConfig, type WitboostConfig, type RawConfigFile } from "./schema.js";
 
 /**
+ * Normalize a raw GIT_BASE_URL value to a bare hostname.
+ * Strips scheme prefixes (https://, http://, git@) and trailing slashes.
+ * Returns "gitlab.com" for empty or undefined input.
+ */
+export function normalizeGitHost(raw: string | undefined): string {
+  if (!raw) return "gitlab.com";
+  let host = raw
+    .replace(/^https?:\/\//, "")
+    .replace(/^git@/, "")
+    .replace(/\/+$/, "")
+    .trim();
+  return host || "gitlab.com";
+}
+
+/**
  * Read key=value pairs from a .env file.
  * Ignores comments (#) and blank lines. Does NOT override existing env vars.
  */
@@ -89,6 +104,7 @@ export function loadConfig(configPath?: string): WitboostConfig {
   const requestTimeout = rawTimeout !== undefined ? Number(rawTimeout) : undefined;
   const defaultDomain = env.WITBOOST_DEFAULT_DOMAIN ?? fileConfig.defaults?.domain;
   const defaultEnvironment = env.WITBOOST_DEFAULT_ENVIRONMENT ?? fileConfig.defaults?.environment;
+  const gitHost = normalizeGitHost(env.GIT_BASE_URL ?? fileConfig.git?.baseUrl);
 
   return buildConfig({
     baseUrl,
@@ -98,5 +114,6 @@ export function loadConfig(configPath?: string): WitboostConfig {
     defaultEnvironment,
     apiVersion,
     requestTimeout,
+    gitHost,
   });
 }

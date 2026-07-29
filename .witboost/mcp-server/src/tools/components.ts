@@ -93,7 +93,8 @@ const componentTools: ToolDefinition[] = [
             "Component template parameters from get_template_schema. " +
             "The 'identifier' field should be the short component name " +
             "(e.g. 'payment-scoring') — it will be auto-qualified to the full format. " +
-            "repoUrl must be: gitlab.com?owner=<encoded-group>&repo=<RepoName>",
+            "repoUrl must be: <gitHost>?owner=<encoded-group>&repo=<RepoName> " +
+            "where <gitHost> is your configured Git provider hostname (default: gitlab.com)",
         },
       },
       required: ["dataProductId", "blueprintId", "parameters"],
@@ -165,10 +166,12 @@ const componentTools: ToolDefinition[] = [
           }
         }
 
-        // Auto-derive or fix repoUrl from the parent DP's GitLab project-slug.
+        // Auto-derive or fix repoUrl from the parent DP's project-slug annotation.
         // The DP slug looks like "Group/Sub/Path/dpRepoName" — strip the last segment
-        // to get the GitLab group that contains all component repos for this DP.
-        const dpSlug = dpData?.metadata?.annotations?.["gitlab.com/project-slug"];
+        // to get the Git group that contains all component repos for this DP.
+        const dpAnnotations: Record<string, unknown> = dpData?.metadata?.annotations ?? {};
+        const dpSlugKey = Object.keys(dpAnnotations).find((k) => k.endsWith("/project-slug"));
+        const dpSlug = dpSlugKey ? (dpAnnotations[dpSlugKey] as string | undefined) : undefined;
         if (dpSlug && typeof dpSlug === "string" && !dpSlug.includes("undefined")) {
           const slugParts = dpSlug.split("/");
           const groupPath = slugParts.slice(0, -1).join("/"); // everything except repo name
@@ -178,15 +181,15 @@ const componentTools: ToolDefinition[] = [
             // No repoUrl provided — derive from identifier or name
             const repoName = ((values.identifier as string) ?? (values.name as string) ?? "component")
               .split(".").pop()!                   // take short name from qualified id
-              .replace(/[^a-zA-Z0-9]/g, "")        // remove hyphens/underscores for GitLab
+              .replace(/[^a-zA-Z0-9]/g, "")        // remove hyphens/underscores
               .toLowerCase();
-            values.repoUrl = `gitlab.com?owner=${encodedGroup}&repo=${repoName}`;
+            values.repoUrl = `${ctx.config.gitHost}?owner=${encodedGroup}&repo=${repoName}`;
           } else {
             // repoUrl provided — fix the owner if it doesn't match the DP's group
             const currentOwner = (values.repoUrl as string).match(/owner=([^&]+)/)?.[1];
             if (currentOwner && decodeURIComponent(currentOwner) !== groupPath) {
               const repoName = (values.repoUrl as string).match(/repo=([^&]+)/)?.[1] ?? "component";
-              values.repoUrl = `gitlab.com?owner=${encodedGroup}&repo=${repoName}`;
+              values.repoUrl = `${ctx.config.gitHost}?owner=${encodedGroup}&repo=${repoName}`;
             }
           }
         }

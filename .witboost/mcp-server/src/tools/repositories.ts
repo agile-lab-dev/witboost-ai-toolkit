@@ -14,21 +14,27 @@ interface RepoUrls {
   sshUrl: string;
 }
 
-/** Extract both HTTPS and SSH Git URLs from entity annotations (GitLab only) */
-function extractRepoUrls(entity: any): RepoUrls | undefined {
-  // Primary: gitlab.com/project-slug → group/subgroup/repo
-  const slug = entity.metadata?.annotations?.["gitlab.com/project-slug"];
+/** Extract both HTTPS and SSH Git URLs from entity annotations */
+function extractRepoUrls(entity: any, gitHost: string): RepoUrls | undefined {
+  // Primary: any */project-slug annotation → group/subgroup/repo
+  const annotations: Record<string, unknown> = entity.metadata?.annotations ?? {};
+  const slugKey = Object.keys(annotations).find((k) => k.endsWith("/project-slug"));
+  const slug = slugKey ? (annotations[slugKey] as string | undefined) : undefined;
   if (slug && !slug.includes("undefined") && !slug.includes("${{")) {
-    return { httpUrl: `https://gitlab.com/${slug}.git`, sshUrl: `git@gitlab.com:${slug}.git` };
+    return { httpUrl: `https://${gitHost}/${slug}.git`, sshUrl: `git@${gitHost}:${slug}.git` };
   }
-  // Fallback: parse source-location or repo-url
+  // Fallback: use source-location or repo-url annotation verbatim
   const srcLoc =
     entity.metadata?.annotations?.["backstage.io/source-location"] ??
     entity.metadata?.annotations?.["witboost.com/repo-url"];
   if (srcLoc) {
-    const cleaned = srcLoc.replace(/^url:/, "");
-    const match = cleaned.match(/https:\/\/gitlab\.com\/([^/]+(?:\/[^/]+)*?)(?:\/-\/|\/?$)/);
-    if (match) return { httpUrl: `https://gitlab.com/${match[1]}.git`, sshUrl: `git@gitlab.com:${match[1]}.git` };
+    const cleaned = (srcLoc as string).replace(/^url:/, "").trim();
+    if (cleaned.startsWith("http")) {
+      const base = cleaned.replace(/\/-\/.*$/, "").replace(/\/+$/, "").replace(/\.git$/, "");
+      const httpUrl = `${base}.git`;
+      const sshUrl = httpUrl.replace(/^https?:\/\/([^/]+)\//, "git@$1:");
+      return { httpUrl, sshUrl };
+    }
   }
   return undefined;
 }
@@ -56,7 +62,7 @@ const repositoryTools: ToolDefinition[] = [
       const repos: { name: string; urls: RepoUrls; entity: string }[] = [];
 
       // Include the system (DP) repo itself
-      const dpUrls = extractRepoUrls(dpRes.data);
+      const dpUrls = extractRepoUrls(dpRes.data, ctx.config.gitHost);
       if (dpUrls) {
         repos.push({
           name: dpRes.data.metadata?.name ?? dpId,
@@ -73,7 +79,7 @@ const repositoryTools: ToolDefinition[] = [
       for (const ref of componentRefs) {
         const res = await ctx.api.get<any>(`/api/catalog/entities/by-name/${ref.replace(":", "/")}`);
         if (res.ok) {
-          const urls = extractRepoUrls(res.data);
+          const urls = extractRepoUrls(res.data, ctx.config.gitHost);
           if (urls) {
             repos.push({
               name: res.data.metadata?.name ?? ref,

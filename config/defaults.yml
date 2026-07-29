@@ -23,6 +23,14 @@ defaults:
   # Default environment for deployments
   environment: ""
 
+# Git provider configuration
+git:
+  # Bare hostname of the Git provider instance (no scheme, no trailing slash).
+  # Default: gitlab.com
+  # Override: GIT_BASE_URL environment variable
+  # Examples: gitlab.mycompany.com  |  gitlab.mycompany.com:8080
+  # baseUrl: "gitlab.mycompany.com"
+
 # Harness configuration
 harness:
   # Which harness(es) to generate files for

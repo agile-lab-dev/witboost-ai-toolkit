@@ -228,19 +228,22 @@ const dataProductTools: ToolDefinition[] = [
       const dpRes = await ctx.api.get<any>(`/api/catalog/entities/by-name/system/default/${id}`);
       if (!dpRes.ok) return apiError(dpRes.error!.code, dpRes.error!.message);
 
-      const slug = dpRes.data.metadata?.annotations?.["gitlab.com/project-slug"];
-      const srcLoc = dpRes.data.metadata?.annotations?.["backstage.io/source-location"] ?? "";
+      const annotations: Record<string, unknown> = dpRes.data.metadata?.annotations ?? {};
+      const slugKey = Object.keys(annotations).find((k) => k.endsWith("/project-slug"));
+      const slug = slugKey ? (annotations[slugKey] as string | undefined) : undefined;
+      const srcLoc = (dpRes.data.metadata?.annotations?.["backstage.io/source-location"] ?? "") as string;
       let httpUrl: string | undefined;
       let sshUrl: string | undefined;
 
       if (slug && !slug.includes("undefined") && !slug.includes("${{")) {
-        httpUrl = `https://gitlab.com/${slug}.git`;
-        sshUrl = `git@gitlab.com:${slug}.git`;
+        httpUrl = `https://${ctx.config.gitHost}/${slug}.git`;
+        sshUrl = `git@${ctx.config.gitHost}:${slug}.git`;
       } else {
-        const match = srcLoc.replace(/^url:/, "").match(/https:\/\/gitlab\.com\/([^/]+(?:\/[^/]+)*?)(?:\/-\/|$)/);
-        if (match) {
-          httpUrl = `https://gitlab.com/${match[1]}.git`;
-          sshUrl = `git@gitlab.com:${match[1]}.git`;
+        const cleaned = srcLoc.replace(/^url:/, "").trim();
+        if (cleaned.startsWith("http")) {
+          const base = cleaned.replace(/\/-\/.*$/, "").replace(/\/+$/, "").replace(/\.git$/, "");
+          httpUrl = `${base}.git`;
+          sshUrl = httpUrl.replace(/^https?:\/\/([^/]+)\//, "git@$1:");
         }
       }
 

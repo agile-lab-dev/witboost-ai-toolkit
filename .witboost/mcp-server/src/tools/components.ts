@@ -194,6 +194,26 @@ const componentTools: ToolDefinition[] = [
         values.dataproductName = values.name;
       }
 
+      // Validate dependsOn format: each entry must be a URN (urn:dmb:cmp:...).
+      // The scaffolder writes dependsOn verbatim into catalog-info.yaml — dot-notation
+      // IDs cause COR_PARSE_DESCR_1 ("depends on non-sibling component(s)") at validation.
+      // We do NOT auto-convert: a DP or domain name containing dots would produce a wrong URN.
+      // Instead, fail early with clear guidance so the agent fetches the real URN.
+      if (Array.isArray(values.dependsOn)) {
+        const invalid = (values.dependsOn as string[]).filter(
+          (dep) => typeof dep === "string" && dep.trim() !== "" && !dep.startsWith("urn:"),
+        );
+        if (invalid.length > 0) {
+          return text(
+            `[INVALID_DEPENDS_ON] dependsOn entries must use URN format (urn:dmb:cmp:<domain>:<dp>:<version>:<component>), ` +
+            `not dot-notation.\n\nInvalid entries: ${invalid.map((d) => `\`${d}\``).join(", ")}\n\n` +
+            `To get the correct URN for a sibling component, call \`list_components\` on this data product ` +
+            `and read the \`id\` field of the target component (e.g. \`urn:dmb:cmp:finance:spend-analytics:0:raw-storage\`).`,
+            true,
+          );
+        }
+      }
+
       // Ensure rootDirectory is set to prevent double-slash in catalog-info.yaml URL.
       // Templates like snowflake-template.1 default to "." but the scaffolder doesn't
       // apply the default, producing paths like "master//catalog-info.yaml" → 400 Bad Request.

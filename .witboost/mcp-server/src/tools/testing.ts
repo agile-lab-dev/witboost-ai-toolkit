@@ -424,10 +424,29 @@ const testingTools: ToolDefinition[] = [
       );
 
       if (!validateRes.ok) {
-        return apiError(
-          validateRes.error!.code,
-          `Validation API error: ${validateRes.error!.message}`,
-        );
+        // Surface problems[] and solutions[] from the response body (e.g. COR_PARSE_DESCR_1)
+        // so the agent can read the actual cause instead of a generic INTERNAL_ERROR message.
+        const body: any = validateRes.data ?? {};
+        const problems: string[] = Array.isArray(body.problems) ? body.problems : [];
+        const solutions: string[] = Array.isArray(body.solutions) ? body.solutions : [];
+        const code = validateRes.error!.code;
+        const msg = validateRes.error!.message;
+        const lines = [`[${code}] Validation API error: ${msg}`];
+        if (problems.length) {
+          lines.push("", "**Problems:**");
+          problems.forEach((p: string) => lines.push(`- ${p}`));
+        }
+        if (solutions.length) {
+          lines.push("", "**Solutions:**");
+          solutions.forEach((s: string) => lines.push(`- ${s}`));
+        }
+        if (!problems.length && !solutions.length && body && typeof body === "object") {
+          lines.push("", "**Raw response:**");
+          lines.push("```json");
+          lines.push(JSON.stringify(body, null, 2));
+          lines.push("```");
+        }
+        return text(lines.join("\n"), true);
       }
 
       const results: ValidateResult[] =

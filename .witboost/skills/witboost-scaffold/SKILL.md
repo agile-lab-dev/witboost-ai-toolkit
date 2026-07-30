@@ -94,6 +94,20 @@ Example: `Finance - B2B Credit - version 0 - B2B Credit Scores`
 Create components in dependency order (storage → workload → output port).
 Derive order from `dependsOn` in the template schema.
 
+### dependsOn Format (MANDATORY)
+
+`dependsOn` entries **must be URN strings** (`urn:dmb:cmp:...`). The scaffolder writes them verbatim into `catalog-info.yaml` — passing dot-notation causes `COR_PARSE_DESCR_1` at validation.
+
+**How to get the correct URN**: after creating a component, call `list_components` on the data product and read the `id` field of the target component:
+
+```
+list_components(dataProductId) → component.id = "urn:dmb:cmp:finance:spend-analytics:0:raw-storage"
+```
+
+Use that exact `id` value in `dependsOn` when creating downstream components.
+
+If `dependsOn` contains non-URN strings, `add_component` will fail immediately with `[INVALID_DEPENDS_ON]` and tell you which entries are wrong.
+
 ## Skeleton vs Plain Entities
 
 Before editing a component's `catalog-info.yaml`, check the first line:

@@ -2,13 +2,13 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-AI toolkit that turns Witboost platform APIs into an MCP server with 33 tools, paired with agentic instructions that drive the full data product lifecycle — discovery, creation, governance, and deployment — from inside your IDE.
+AI toolkit that turns Witboost platform APIs into an MCP server with 36 tools, paired with agentic instructions that drive the full data product lifecycle — discovery, creation, governance, and deployment — from inside your IDE.
 
 ## How It Works
 
 The toolkit has two parts:
 
-1. **MCP Server** — a single Node.js process that exposes 33 tools across 9 categories, callable by any MCP-compatible AI client (GitHub Copilot, Claude Code, Codex, etc.)
+1. **MCP Server** — a single Node.js process that exposes 36 tools across 10 categories, callable by any MCP-compatible AI client (GitHub Copilot, Claude Code, Codex, etc.)
 2. **Agent definitions** — canonical YAML+Markdown descriptions of workflows, skills, and rules that get translated into harness-specific files (`.agent.md`, `.instructions.md`, `CLAUDE.md`, `AGENTS.md`, etc.)
 
 When you run `node .witboost/mcp-server/setup.cjs --harness copilot`, the toolkit generates the files your IDE needs to connect to the MCP server and load the agent instructions. The AI can then autonomously create data products, implement business logic, validate against governance policies, and deploy — all through tool calls.
@@ -39,7 +39,7 @@ node .witboost/mcp-server/setup.cjs --harness copilot
 
 ## MCP Tools
 
-33 tools across 9 categories:
+36 tools across 10 categories:
 
 | Category | Tools | Description |
 |----------|-------|-------------|
@@ -47,8 +47,9 @@ node .witboost/mcp-server/setup.cjs --harness copilot
 | **Data Products** | `list_data_products`, `get_data_product`, `create_data_product`, `update_data_product`, `delete_data_product` | CRUD operations on data products |
 | **Components** | `list_components`, `add_component`, `remove_component` | Manage storage, workloads, and output ports |
 | **Repositories** | `list_repositories` | Access component Git repos (returns HTTPS + SSH URLs) |
+| **Domains** | `list_domains` | List domains available in the Witboost Catalog |
 | **Validation** | `build_descriptor`, `validate_descriptor`, `run_tests`, `get_test_results` | Build descriptors, validate against policies, run provisioner tests |
-| **Provisioning** | `deploy`, `undeploy`, `get_deployment_status`, `get_deployment_logs` | Deploy and monitor data products |
+| **Provisioning** | `create_snapshot`, `list_releases`, `deploy`, `promote_release`, `undeploy`, `get_deployment_status`, `get_deployment_logs` | Deploy and monitor data products |
 | **Governance** | `list_policies`, `get_policy`, `check_policies`, `get_approval_status`, `get_descriptor_specification` | Inspect policies, check compliance, retrieve the descriptor CUE schema. ⚠️ Requires WCG to be reachable/exposed (set `WITBOOST_WCG_URL` when needed) |
 | **Marketplace** | `marketplace_search`, `marketplace_get_data_product`, `marketplace_get_output_ports`, `marketplace_get_output_port` | Discover published data products and their schemas |
 | **Scaffolder** | (internal) | Template execution via the Witboost scaffolder API |
@@ -121,7 +122,7 @@ Optional YAML config at `.witboost/config.yml` — see `config/defaults.yml` for
 ├── mcp-server/
 │   └── src/
 │       ├── server/        # MCP server entry point, stdio transport
-│       ├── tools/         # 9 tool modules (33 tools total)
+│       ├── tools/         # 10 tool modules (36 tools total)
 │       ├── api/           # HTTP client for Witboost REST API
 │       ├── config/        # Layered config (defaults → file → env)
 │       ├── auth/          # OIDC login flow

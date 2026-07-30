@@ -130,7 +130,7 @@ Component repos use one of two patterns — **always check before editing**:
 - **Never guess** repo URLs — always call `list_repositories` first (returns both HTTPS and SSH URLs)
 - **Always inspect** upstream output port schemas before designing a new DP
 - **On SCAFFOLDER_FAILED (repo not empty)**: use `list_components` to check if the component already exists — if so, just clone it instead of re-creating
-- **dependsOn format**: always use URN format (`urn:dmb:cmp:domain:dp:version:component`), never `component:default/...`
+- **dependsOn format**: always use the URN from `list_components` (field `id`, e.g. `urn:dmb:cmp:domain:dp:version:component`). Call `list_components` after creating each upstream component to get its exact URN before creating any component that depends on it. Never derive the URN by hand — if the format is wrong, `add_component` will fail with `[INVALID_DEPENDS_ON]`.
 
 ### Repositories
 - **Repo URLs come from catalog entities** — always use `list_repositories` to get the correct HTTPS/SSH URL for each component. Never construct, guess, or create repo URLs manually. Prefer the SSH URL for `git clone` (developers authenticate via SSH keys); fall back to HTTPS only if SSH is unavailable.

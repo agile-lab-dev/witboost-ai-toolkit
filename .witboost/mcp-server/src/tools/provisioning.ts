@@ -193,7 +193,7 @@ const provisioningTools: ToolDefinition[] = [
           type: "string",
           description: "Data product identifier in dot-notation (e.g. 'internalit.my-dp.0')",
         },
-        environment: { type: "string", description: "Target environment (e.g. 'development', 'production')" },
+        environment: { type: "string", description: "Target environment. Names are tenant-specific (e.g. 'dev'/'uat'/'prod' or 'development'/'production') — never assume; ask the user." },
         confirm: { type: "boolean", description: "Must be true to confirm deployment" },
         releaseEntityName: {
           type: "string",

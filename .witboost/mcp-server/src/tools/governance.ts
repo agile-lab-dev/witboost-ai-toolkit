@@ -103,7 +103,7 @@ const governanceTools: ToolDefinition[] = [
         environment: {
           type: "string",
           description:
-            "Optional environment filter applied server-side by WCG, e.g. 'development', 'qa', or 'production'.",
+            "Optional environment filter applied server-side by WCG. Names are tenant-specific (e.g. 'dev'/'uat'/'prod' or 'development'/'qa'/'production') — never assume; ask the user for the exact value.",
         },
       },
     },

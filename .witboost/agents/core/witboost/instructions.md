@@ -146,4 +146,4 @@ Component repos use one of two patterns — **always check before editing**:
 ### Deployment
 - **Never deploy without validating first**
 - **Never deploy to production without explicit user confirmation**
-- Start with `development` environment, promote to `production`
+- **Environment names are tenant-specific** — never assume `development`/`staging`/`production` exist; some tenants use `dev`/`uat`/`prod`, others use different names entirely. Confirm the exact names with the user (or from environments already seen in prior successful calls) before using them. Start with the lowest non-production tier, promote after validation.

@@ -30,12 +30,14 @@ tools:
 
 ### Environment Selection
 
-| Environment | Error detail | Use for |
-|---|---|---|
-| `production` | **Full error messages** from all policies | Debugging validation failures |
-| `development` | Often empty error arrays despite FAILED status | Quick smoke test only |
+Environment names are **tenant-specific** — don't assume `production`/`development` exist; confirm the exact names with the user first (some tenants use `dev`/`uat`/`prod`, etc.).
 
-**Tip**: Always use `production` environment for meaningful error messages.
+| Tier | Error detail | Use for |
+|---|---|---|
+| highest (e.g. `prod`/`production`) | **Full error messages** from all policies | Debugging validation failures |
+| lowest (e.g. `dev`/`development`) | Often empty error arrays despite FAILED status | Quick smoke test only |
+
+**Tip**: Once you've confirmed the exact name for this tenant, prefer the highest tier for meaningful error messages.
 
 ### Validation Result Interpretation
 

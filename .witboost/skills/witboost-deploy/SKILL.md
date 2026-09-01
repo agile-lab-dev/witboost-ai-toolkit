@@ -20,13 +20,17 @@ Always validate before deploying. Never skip straight to deployment.
 
 ## Environment Management
 
-| Environment | Policies | Approvals | Use for |
-|---|---|---|---|
-| `development` | Relaxed | None | Frequent iteration |
-| `staging` | Strict | Sometimes | Pre-production validation |
-| `production` | Full governance | Required | Live data |
+Environment names are **tenant-specific** — don't assume `development`/`staging`/`production` exist. Some tenants use `dev`/`uat`/`prod`, others use entirely different names. Confirm the exact names with the user (or from environments already seen in prior successful calls) before deploying.
 
-**Best practice**: Deploy to `development` first, then promote.
+Typical tier pattern (actual names vary by tenant):
+
+| Tier | Policies | Approvals | Use for |
+|---|---|---|---|
+| lowest (e.g. `dev`/`development`) | Relaxed | None | Frequent iteration |
+| middle (e.g. `uat`/`staging`) | Strict | Sometimes | Pre-production validation |
+| highest (e.g. `prod`/`production`) | Full governance | Required | Live data |
+
+**Best practice**: Deploy to the lowest non-production tier first, then promote.
 
 ## Deployment Workflow
 

@@ -262,8 +262,7 @@ const marketplaceTools: ToolDefinition[] = [
         },
         environment: {
           type: "string",
-          description: "Filter by environment (e.g. 'production', 'development'). Defaults to 'production'.",
-          default: "production",
+          description: "Filter by environment. Names are tenant-specific (e.g. 'prod'/'production') — defaults to WITBOOST_DEFAULT_ENVIRONMENT if set, otherwise 'production'.",
         },
         pageLimit: {
           type: "number",
@@ -279,7 +278,7 @@ const marketplaceTools: ToolDefinition[] = [
     },
     async handler(params, ctx) {
       const term = params.term as string;
-      const environment = (params.environment as string) ?? "production";
+      const environment = (params.environment as string) || ctx.config.defaultEnvironment || "production";
       const pageLimit = (params.pageLimit as number) ?? 15;
       const pageCursor = params.pageCursor as string | undefined;
 
@@ -330,15 +329,14 @@ const marketplaceTools: ToolDefinition[] = [
         },
         environment: {
           type: "string",
-          description: "Environment (e.g. 'production', 'development'). Defaults to 'production'.",
-          default: "production",
+          description: "Environment. Names are tenant-specific (e.g. 'prod'/'production') — defaults to WITBOOST_DEFAULT_ENVIRONMENT if set, otherwise 'production'.",
         },
       },
       required: ["externalId"],
     },
     async handler(params, ctx) {
       const externalId = params.externalId as string;
-      const environment = (params.environment as string) ?? "production";
+      const environment = (params.environment as string) || ctx.config.defaultEnvironment || "production";
 
       const res = await searchQuery(ctx, {
         term: nameFromUrn(externalId),
@@ -380,15 +378,14 @@ const marketplaceTools: ToolDefinition[] = [
         },
         environment: {
           type: "string",
-          description: "Environment (e.g. 'production', 'development'). Defaults to 'production'.",
-          default: "production",
+          description: "Environment. Names are tenant-specific (e.g. 'prod'/'production') — defaults to WITBOOST_DEFAULT_ENVIRONMENT if set, otherwise 'production'.",
         },
       },
       required: ["externalId"],
     },
     async handler(params, ctx) {
       const externalId = params.externalId as string;
-      const environment = (params.environment as string) ?? "production";
+      const environment = (params.environment as string) || ctx.config.defaultEnvironment || "production";
 
       // Keep the client-side check below as a guard for stale indexes, but send
       // all supported filters to search so pagination happens on the narrowest set.
@@ -455,15 +452,14 @@ const marketplaceTools: ToolDefinition[] = [
         },
         environment: {
           type: "string",
-          description: "Environment (e.g. 'production', 'development'). Defaults to 'production'.",
-          default: "production",
+          description: "Environment. Names are tenant-specific (e.g. 'prod'/'production') — defaults to WITBOOST_DEFAULT_ENVIRONMENT if set, otherwise 'production'.",
         },
       },
       required: ["externalId"],
     },
     async handler(params, ctx) {
       const externalId = params.externalId as string;
-      const environment = (params.environment as string) ?? "production";
+      const environment = (params.environment as string) || ctx.config.defaultEnvironment || "production";
 
       const res = await searchQuery(ctx, {
         term: nameFromUrn(externalId),

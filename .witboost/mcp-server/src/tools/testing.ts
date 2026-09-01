@@ -229,7 +229,7 @@ const testingTools: ToolDefinition[] = [
         },
         environment: {
           type: "string",
-          description: "Target environment (e.g. 'production', 'development'). Ask the user which environment to use.",
+          description: "Target environment. Names are tenant-specific (e.g. 'dev'/'uat'/'prod' or 'development'/'production') — never assume; ask the user which exact environment to use.",
         },
         version: {
           type: "string",
@@ -250,7 +250,7 @@ const testingTools: ToolDefinition[] = [
 
       if (!environment) {
         return text(
-          "[ENVIRONMENT_REQUIRED] You must specify the target environment (e.g. 'development', 'production'). Ask the user which environment to use.",
+          "[ENVIRONMENT_REQUIRED] You must specify the target environment. Names are tenant-specific (e.g. 'dev'/'uat'/'prod' or 'development'/'production') — never assume; ask the user which exact environment to use.",
           true,
         );
       }
@@ -381,7 +381,7 @@ const testingTools: ToolDefinition[] = [
 
       if (!environment) {
         return text(
-          "[ENVIRONMENT_REQUIRED] You must specify the target environment (e.g. 'development', 'production'). Ask the user which environment to use.",
+          "[ENVIRONMENT_REQUIRED] You must specify the target environment. Names are tenant-specific (e.g. 'dev'/'uat'/'prod' or 'development'/'production') — never assume; ask the user which exact environment to use.",
           true,
         );
       }

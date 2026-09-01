@@ -271,7 +271,7 @@ const blueprintTools: ToolDefinition[] = [
         },
         environment: {
           type: "string",
-          description: "Target environment (e.g. 'production', 'development'). If omitted, uses WITBOOST_DEFAULT_ENVIRONMENT.",
+          description: "Target environment. Names are tenant-specific (e.g. 'dev'/'uat'/'prod' or 'development'/'production') — never assume; ask the user. If omitted, uses WITBOOST_DEFAULT_ENVIRONMENT.",
         },
       },
       required: ["dataProductId"],

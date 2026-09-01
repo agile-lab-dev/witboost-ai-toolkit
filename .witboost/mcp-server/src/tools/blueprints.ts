@@ -1,3 +1,4 @@
+import { parse as parseYaml } from "yaml";
 import { registerTools } from "./registry.js";
 import type { ToolDefinition, ToolContext, ToolResult } from "./types.js";
 
@@ -114,8 +115,9 @@ const blueprintTools: ToolDefinition[] = [
       const ordered = topoSortTemplates(mainTemplateId, templates);
 
       const steps = ordered.map((t, i) => {
-        const deps = t.dependencies.length > 0
-          ? ` (depends on: ${t.dependencies.map((d) => `\`${d}\``).join(", ")})`
+        const depsList = t.dependencies ?? [];
+        const deps = depsList.length > 0
+          ? ` (depends on: ${depsList.map((d) => `\`${d}\``).join(", ")})`
           : " (no dependencies)";
         return `${i + 1}. \`${t.id}\`${deps}`;
       });
@@ -287,9 +289,9 @@ const blueprintTools: ToolDefinition[] = [
       }
 
       // 1. Fetch the full descriptor via preview API
-      const previewRes = await ctx.api.post<any>(
+      const previewRes = await ctx.api.post<{ descriptor: string }>(
         `/api/builder/dataproducts/preview`,
-        {},
+        undefined,
         {
           dataProduct: dpId,
           projectKind: "System",
@@ -300,7 +302,12 @@ const blueprintTools: ToolDefinition[] = [
       );
       if (!previewRes.ok) return apiError(previewRes.error!.code, previewRes.error!.message);
 
-      const descriptor = previewRes.data;
+      const descriptorYaml = previewRes.data?.descriptor;
+      if (!descriptorYaml) {
+        return text("[NO_DESCRIPTOR] Preview API returned no descriptor.", true);
+      }
+
+      const descriptor = parseYaml(descriptorYaml) as any;
       const components: any[] = descriptor?.components ?? [];
 
       if (components.length === 0) {

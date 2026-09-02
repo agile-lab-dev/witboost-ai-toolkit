@@ -10,6 +10,11 @@ function apiError(code: string, message: string): ToolResult {
   return text(`[${code}] ${message}`, true);
 }
 
+interface CatalogDomain {
+  metadata?: { name?: string; title?: string };
+  spec?: { mesh?: { name?: string } };
+}
+
 const dataProductTools: ToolDefinition[] = [
   {
     name: "list_data_products",
@@ -94,7 +99,8 @@ const dataProductTools: ToolDefinition[] = [
       "field is 'devGroup' (not developmentGroup), maturity must be 'Proposed', email is REQUIRED. " +
       "For dataproduct-template-skeleton: identifier is short name, field is 'developmentGroup'. " +
       "CRITICAL: dataProductOwner is a RESERVED field — once set at creation it can NEVER be changed. " +
-      "Do NOT guess the owner value. If not provided, the tool auto-resolves it from the authenticated user's catalog entity.",
+      "Do NOT guess the owner value. If not provided, the tool auto-resolves it from the authenticated user's catalog entity. " +
+      "domainName is always overwritten by the tool from the resolved domain's catalog entity — do NOT set it manually.",
     category: "data-products",
     inputSchema: {
       type: "object",
@@ -121,6 +127,35 @@ const dataProductTools: ToolDefinition[] = [
           values[key] = v.replace(":default/", ":");
         }
       }
+
+      const domainRef = values.domain as string | undefined;
+      if (!domainRef) {
+        return text("[DOMAIN_REQUIRED] Missing required 'domain' parameter. Use list_domains to find a valid domain reference.", true);
+      }
+      const domainMatch = domainRef.match(/^domain:(?:(?<namespace>[^/]+)\/)?(?<name>[^/]+)$/);
+      if (!domainMatch?.groups) {
+        return text(`[INVALID_DOMAIN] '${domainRef}' is not a valid domain entity reference. Use list_domains to get a valid reference.`, true);
+      }
+      const domainNamespace = domainMatch.groups.namespace ?? "default";
+      const domainName = domainMatch.groups.name;
+      const domainCheck = await ctx.api.get<CatalogDomain>(
+        `/api/catalog/entities/by-name/domain/${encodeURIComponent(domainNamespace)}/${encodeURIComponent(domainName)}`,
+      );
+      if (!domainCheck.ok) {
+        const domainsRes = await ctx.api.get<CatalogDomain[]>("/api/catalog/entities", {
+          filter: `kind=domain,metadata.name=${domainName}`,
+          limit: 5,
+        });
+        const suggestions = (domainsRes.data ?? []).map((domain) => `domain:${domain.metadata?.name}`).join(", ");
+
+        return text(
+          `[INVALID_DOMAIN] Domain '${domainRef}' not found in the catalog. Use list_domains to get a valid reference.\n${suggestions ? `Did you mean: ${suggestions}` : ""}`,
+          true,
+        );
+      }
+      const domainEntity = domainCheck.data;
+      values.domainName =
+        domainEntity?.spec?.mesh?.name ?? domainEntity?.metadata?.title ?? domainEntity?.metadata?.name ?? domainName;
 
       // --- Owner resolution & validation ---
       // dataProductOwner is a RESERVED field: once set at first ingestion it can NEVER be changed.

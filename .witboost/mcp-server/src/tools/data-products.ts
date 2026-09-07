@@ -96,11 +96,7 @@ const dataProductTools: ToolDefinition[] = [
       "Use list_domains first to get the exact domain reference instead of guessing it. " +
       "Entity references must NOT include 'default/' namespace (use 'domain:finance', not 'domain:default/finance'). " +
       "For dataproduct-template: identifier must be 'domain.name.version' format (e.g. 'finance.spend-analytics.0'), " +
-      "field is 'devGroup' (not developmentGroup), maturity must be 'Proposed', email is REQUIRED. " +
-      "For dataproduct-template-skeleton: identifier is short name, field is 'developmentGroup'. " +
-      "CRITICAL: dataProductOwner is a RESERVED field — once set at creation it can NEVER be changed. " +
-      "Do NOT guess the owner value. If not provided, the tool auto-resolves it from the authenticated user's catalog entity. " +
-      "domainName is always overwritten by the tool from the resolved domain's catalog entity — do NOT set it manually.",
+      "Do NOT guess the owner value. If not provided, the tool auto-resolves it from the authenticated user's catalog entity. ",
     category: "data-products",
     inputSchema: {
       type: "object",

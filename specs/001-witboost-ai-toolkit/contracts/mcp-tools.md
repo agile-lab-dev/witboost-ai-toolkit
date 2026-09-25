@@ -232,7 +232,10 @@ Add a new component to a data product.
 
 ### `remove_component`
 
-Remove a component from a data product.
+Unregister a component from a data product. The component must be present in the
+parent data product's `hasPart` relations. Git-managed components are removed by
+deleting their catalog location; components without a catalog location fall back
+to deletion by entity UID.
 
 **Input Schema**:
 ```json
@@ -247,9 +250,17 @@ Remove a component from a data product.
 }
 ```
 
-**Output**: Text content confirming removal.
+`componentId` accepts a short component name, a fully-qualified catalog entity
+name, a `component:<namespace>/<name>` entity ref, or a
+`urn:dmb:cmp:<domain>:<data-product>:<version>:<component>` URN.
 
-**Errors**: `NOT_FOUND` (404), `UNAUTHORIZED` (401), `CONFIRMATION_REQUIRED`
+**Output**: Text content confirming that the component location was unregistered
+or that the location-less entity was deleted. Catalog relation updates may be
+eventually consistent after successful unregistration.
+
+**Errors**: `NOT_FOUND` (404), `UNAUTHORIZED` (401), `FORBIDDEN` (403),
+`VALIDATION_ERROR` (including governance responses such as HTTP 422),
+`INVALID_CATALOG_RESPONSE`, `NO_LOCATION`, `CONFIRMATION_REQUIRED`
 
 ---
 

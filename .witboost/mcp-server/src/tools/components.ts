@@ -293,55 +293,86 @@ const componentTools: ToolDefinition[] = [
       const dpId = params.dataProductId as string;
       const rawId = params.componentId as string;
 
-      // Normalize componentId to catalog entity name:
-      // - URN "urn:dmb:cmp:domain:dp:ver:name" → "domain.dp.ver.name"
-      // - Short name "my-port" → "domain.dp.ver.my-port" (qualified with dpId)
-      // - Already qualified "domain.dp.ver.name" → used as-is
-      let compId = rawId;
+      let requestedName = rawId;
       if (rawId.startsWith("urn:dmb:cmp:")) {
-        compId = rawId.replace("urn:dmb:cmp:", "").replace(/:/g, ".");
+        requestedName = rawId.replace("urn:dmb:cmp:", "").replace(/:/g, ".");
+      } else if (rawId.startsWith("component:")) {
+        requestedName = rawId.replace(/^component:(?:[^/]+\/)?/, "");
       } else if (!rawId.includes(".")) {
-        // Short name — qualify with dpId
-        compId = `${dpId}.${rawId}`;
+        requestedName = `${dpId}.${rawId}`;
       }
 
-      // Try direct deletion first
-      const res = await ctx.api.delete<any>(
-        `/api/catalog/entities/by-name/component/default/${compId}`,
-      );
-      if (res.ok) {
-        return text(`Component **${compId}** removed from data product **${dpId}**.`);
-      }
-
-      // If not found, search the DP's relations to find the correct entity name
       const dpRes = await ctx.api.get<any>(`/api/catalog/entities/by-name/system/default/${dpId}`);
-      if (dpRes.ok) {
-        const componentRefs = dpRes.data.relations
-          ?.filter((r: any) => r.type === "hasPart")
-          ?.map((r: any) => r.targetRef) ?? [];
+      if (!dpRes.ok) return apiError(dpRes.error!.code, dpRes.error!.message);
 
-        // Try matching by suffix (short name)
-        const shortName = rawId.includes(".") ? rawId.split(".").pop()! : rawId.replace(/^urn:dmb:cmp:.*:/, "");
-        const match = componentRefs.find((ref: string) => ref.endsWith(`/${compId}`) || ref.endsWith(`/${dpId}.${shortName}`));
-        if (match) {
-          const entityName = match.replace("component:default/", "");
-          const retryRes = await ctx.api.delete<any>(
-            `/api/catalog/entities/by-name/component/default/${entityName}`,
-          );
-          if (retryRes.ok) {
-            return text(`Component **${entityName}** removed from data product **${dpId}**.`);
-          }
-          return apiError(retryRes.error!.code, retryRes.error!.message);
-        }
+      const componentRefs = dpRes.data.relations
+        ?.filter((relation: any) => relation.type === "hasPart")
+        ?.map((relation: any) => relation.targetRef) ?? [];
+      const requestedShortName = requestedName.split(".").pop()!;
+      const componentRef = componentRefs.find((ref: string) => {
+        const entityName = ref.replace(/^component:(?:[^/]+\/)?/, "");
+        return entityName === requestedName || entityName === `${dpId}.${requestedShortName}`;
+      });
 
+      if (!componentRef) {
         return text(
           `[NOT_FOUND] Component not found. Available components for ${dpId}:\n` +
-          componentRefs.map((r: string) => `- ${r}`).join("\n"),
+          componentRefs.map((ref: string) => `- ${ref}`).join("\n"),
           true,
         );
       }
 
-      return apiError(res.error!.code, res.error!.message);
+      const entityName = componentRef.replace(/^component:(?:[^/]+\/)?/, "");
+      const encodedEntityName = encodeURIComponent(entityName);
+      const entityRes = await ctx.api.get<any>(
+        `/api/catalog/entities/by-name/component/default/${encodedEntityName}`,
+      );
+      if (!entityRes.ok) return apiError(entityRes.error!.code, entityRes.error!.message);
+
+      const locationRes = await ctx.api.get<any>(
+        `/api/catalog/locations/by-entity/component/default/${encodedEntityName}`,
+      );
+      if (locationRes.ok) {
+        const location = locationRes.data?.data ?? locationRes.data;
+        const locationId = location?.id;
+        if (!locationId) {
+          return text(
+            `[INVALID_CATALOG_RESPONSE] Catalog returned a location without an id for component '${entityName}'.`,
+            true,
+          );
+        }
+
+        const deleteLocationRes = await ctx.api.delete<any>(
+          `/api/catalog/locations/${encodeURIComponent(locationId)}`,
+        );
+        if (!deleteLocationRes.ok) {
+          return apiError(deleteLocationRes.error!.code, deleteLocationRes.error!.message);
+        }
+        return text(
+          `Component **${entityName}** has been unregistered from data product **${dpId}**. ` +
+          "The catalog entry will be removed on the next sync cycle.",
+        );
+      }
+
+      if (locationRes.status !== 404) {
+        return apiError(locationRes.error!.code, locationRes.error!.message);
+      }
+
+      const uid = entityRes.data?.metadata?.uid;
+      if (!uid) {
+        return text(
+          `[NO_LOCATION] Component '${entityName}' has no catalog location or entity UID.`,
+          true,
+        );
+      }
+
+      const deleteEntityRes = await ctx.api.delete<any>(
+        `/api/catalog/entities/by-uid/${encodeURIComponent(uid)}`,
+      );
+      if (!deleteEntityRes.ok) {
+        return apiError(deleteEntityRes.error!.code, deleteEntityRes.error!.message);
+      }
+      return text(`Component **${entityName}** has been deleted from data product **${dpId}**.`);
     },
   },
 ];
